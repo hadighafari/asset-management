@@ -1,6 +1,6 @@
 {
-  "latestVersion": "1.0.5",
-  "versionCode": 6,
-  "apkUrl": "https://cdn.jsdelivr.net/gh/trade-master65/asset-management@main/apk/AssetManagement-v1.0.5.apk",
-  "notes": "اصلاح splash screen با لوگو تمام صفحه + رفع باگ گیر کردن در صفحه لود + ErrorBoundary"
+  "latestVersion": "1.0.6",
+  "versionCode": 7,
+  "apkUrl": "https://cdn.jsdelivr.net/gh/trade-master65/asset-management@main/apk/AssetManagement-v1.0.6.apk",
+  "notes": "رفع باگ گیر کردن در صفحه لود + لوگو فول اسکرین واقعی + بهبود startup"
 }

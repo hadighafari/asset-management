@@ -44,10 +44,10 @@ export default function RootLayout() {
     // بستن splash پیش‌فرض expo بلافاصله
     SplashScreen.hideAsync().catch(() => {});
 
-    // نمایش splash سفارشی برای 2.5 ثانیه
+    // نمایش splash سفارشی برای 2 ثانیه
     const timer = setTimeout(() => {
       setAppReady(true);
-    }, 2500);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -80,17 +80,20 @@ export default function RootLayout() {
   );
 }
 
-// splash با لوگو تمام صفحه
+// splash با لوگو تمام صفحه - واقعاً کل صفحه
 function FullScreenSplash() {
   const { width, height } = Dimensions.get('window');
 
   return (
     <View style={splashStyles.container}>
-      {/* لوگو تمام صفحه - با resizeMode cover کل صفحه را پر می‌کند */}
+      {/* لوگو تمام صفحه - resizeMode=stretch برای پر کردن کل صفحه */}
       <Image
         source={require('../assets/icon.png')}
-        style={[splashStyles.logo, { width: width, height: height }]}
-        resizeMode="cover"
+        style={{
+          width: width,
+          height: height,
+        }}
+        resizeMode="stretch"
       />
       {/* لایه تیره برای خوانایی loading indicator */}
       <View style={splashStyles.overlay} />
@@ -112,14 +115,7 @@ const styles = StyleSheet.create({
 const splashStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.dark.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logo: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+    backgroundColor: '#0B0E11',
   },
   overlay: {
     position: 'absolute',
@@ -127,7 +123,7 @@ const splashStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(11, 14, 17, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   loadingWrap: {
     position: 'absolute',

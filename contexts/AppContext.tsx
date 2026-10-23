@@ -1,5 +1,6 @@
 // ============================================================
 //  AppContext - مدیریت تم و IP و قفل اپ
+//  ساده شده برای جلوگیری از گیر کردن در startup
 // ============================================================
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -33,15 +34,19 @@ interface AppContextValue {
   refreshIp: () => Promise<void>;
   isIran: boolean;
   canAccessCrypto: boolean;
+  settingsLoaded: boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  // مهم: تنظیمات پیش‌فرض از همان ابتدا فعال هستند
+  // اگر AsyncStorage دیر لود شود، مشکلی نیست - اپ کار می‌کند
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [ipInfo, setIpInfo] = useState<IpInfo | null>(null);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(true); // مهم: default true
 
+  // بارگذاری تنظیمات در background (بدون block کردن اپ)
   useEffect(() => {
     (async () => {
       try {
@@ -50,26 +55,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const parsed = JSON.parse(stored);
           const newSettings = { ...DEFAULT_SETTINGS, ...parsed };
           setSettings(newSettings);
-          setThemeMode(newSettings.themeMode);
+          if (parsed.themeMode) {
+            setThemeMode(parsed.themeMode);
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.log('[AppContext] settings load error:', e);
+      }
       setSettingsLoaded(true);
     })();
   }, []);
 
+  // بررسی IP در background (بدون block کردن اپ)
   const refreshIp = useCallback(async () => {
-    clearIpCache();
-    const info = await checkIp();
-    setIpInfo(info);
+    try {
+      clearIpCache();
+      const info = await checkIp();
+      setIpInfo(info);
+    } catch (e) {
+      console.log('[AppContext] IP check error:', e);
+    }
   }, []);
 
   useEffect(() => {
-    if (settingsLoaded) {
+    // IP check را با delay اجرا می‌کنیم تا اپ اول بالا بیاید
+    const timer = setTimeout(() => {
       refreshIp();
-      const interval = setInterval(refreshIp, 5 * 60 * 1000);
-      return () => clearInterval(interval);
-    }
-  }, [settingsLoaded, refreshIp]);
+    }, 1000);
+    const interval = setInterval(refreshIp, 5 * 60 * 1000);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [refreshIp]);
 
   const updateSettings = useCallback(async (patch: Partial<AppSettings>) => {
     const newSettings = { ...settings, ...patch };
@@ -79,13 +97,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
-    } catch {}
+    } catch (e) {
+      console.log('[AppContext] settings save error:', e);
+    }
   }, [settings]);
 
   const saveSettings = useCallback(async () => {
     try {
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    } catch {}
+    } catch (e) {
+      console.log('[AppContext] settings save error:', e);
+    }
   }, [settings]);
 
   const isIran = ipInfo?.isIran ?? false;
@@ -101,6 +123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         refreshIp,
         isIran,
         canAccessCrypto,
+        settingsLoaded,
       }}
     >
       {children}

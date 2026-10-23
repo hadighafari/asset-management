@@ -7,8 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Linking, Platform } from 'react-native';
 
-export const APP_VERSION = '1.0.5';
-export const APP_VERSION_CODE = 6;
+export const APP_VERSION = '1.0.6';
+export const APP_VERSION_CODE = 7;
 
 // آدرس سرور Railway (مخفی - در UI نمایش داده نمی‌شود)
 const RAILWAY_SERVER = 'https://asset-management65.up.railway.app';
