@@ -2,7 +2,7 @@
   "expo": {
     "name": "مدیریت دارایی",
     "slug": "asset-management",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "assetmanagement",
@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.trademaster65.assetmanagement",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B0F14"
@@ -45,7 +45,7 @@
         "projectId": "REPLACE_WITH_YOUR_EAS_PROJECT_ID"
       },
       "railwayProxyUrl": "https://YOUR-RAILWAY-APP.up.railway.app",
-      "appVersion": "1.0.4",
+      "appVersion": "1.0.5",
       "appCreator": "trade_master65",
       "appName": "مدیریت دارایی"
     },
