@@ -1,6 +1,6 @@
 // ============================================================
 //  ExchangeAssetsSection — «ارز دیجیتال» (صرافی‌ها)
-//  اتصال به صرافی‌های ایرانی و بین‌المللی و نمایش موجودی
+//  با منوی کشویی برای همه ارزها
 // ============================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Modal,
 } from 'react-native';
 import {
   Landmark,
@@ -24,6 +25,8 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  Search,
+  Coins,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../constants/colors';
@@ -31,7 +34,7 @@ import { createThemedStyles } from '../utils/themeStyles';
 import { formatFullToman } from '../utils/iranMarketApi';
 import { formatToman } from '../utils/nobitexApi';
 
-const CONNECTIONS_KEY = '@exchange_connections_v1';
+const CONNECTIONS_KEY = '@exchange_connections_v2';
 
 interface ExchangeConnection {
   id: string;
@@ -50,83 +53,32 @@ interface ExchangeConfig {
   nameEn: string;
   category: 'iranian' | 'international';
   color: string;
-  requiresApiKey: boolean;
   helpText: string;
 }
 
+// همه صرافی‌های پشتیبانی‌شده (منوی کشویی)
 const EXCHANGES: Record<string, ExchangeConfig> = {
-  nobitex: {
-    id: 'nobitex',
-    name: 'نوبیتکس',
-    nameEn: 'Nobitex',
-    category: 'iranian',
-    color: '#00A8E8',
-    requiresApiKey: true,
-    helpText: 'صرافی ایرانی نوبیتکس - نیازی به VPN ندارد',
-  },
-  bitperp: {
-    id: 'bitperp',
-    name: 'بیت‌پِرپ',
-    nameEn: 'Bitperp',
-    category: 'iranian',
-    color: '#9333EA',
-    requiresApiKey: true,
-    helpText: 'صرافی ایرانی بیت‌پِرپ - نیازی به VPN ندارد',
-  },
-  wallex: {
-    id: 'wallex',
-    name: 'ولکس',
-    nameEn: 'Wallex',
-    category: 'iranian',
-    color: '#0EA5E9',
-    requiresApiKey: true,
-    helpText: 'صرافی ایرانی ولکس - نیازی به VPN ندارد',
-  },
-  binance: {
-    id: 'binance',
-    name: 'بایننس',
-    nameEn: 'Binance',
-    category: 'international',
-    color: '#F0B90B',
-    requiresApiKey: true,
-    helpText: 'بایننس بزرگترین صرافی جهان - نیازمند VPN خارج از ایران',
-  },
-  bybit: {
-    id: 'bybit',
-    name: 'بای‌بیت',
-    nameEn: 'Bybit',
-    category: 'international',
-    color: '#F7A600',
-    requiresApiKey: true,
-    helpText: 'صرافی بای‌بیت - نیازمند VPN خارج از ایران',
-  },
-  okx: {
-    id: 'okx',
-    name: 'او‌کی‌ایکس',
-    nameEn: 'OKX',
-    category: 'international',
-    color: '#1A1A1A',
-    requiresApiKey: true,
-    helpText: 'صرافی OKX - نیازمند VPN خارج از ایران',
-  },
-  mexc: {
-    id: 'mexc',
-    name: 'ام‌ایکس‌سی',
-    nameEn: 'MEXC',
-    category: 'international',
-    color: '#1972F5',
-    requiresApiKey: true,
-    helpText: 'صرافی MEXC - نیازمند VPN خارج از ایران',
-  },
+  nobitex: { id: 'nobitex', name: 'نوبیتکس', nameEn: 'Nobitex', category: 'iranian', color: '#00A8E8', helpText: 'صرافی ایرانی' },
+  bitperp: { id: 'bitperp', name: 'بیت‌پِرپ', nameEn: 'Bitperp', category: 'iranian', color: '#9333EA', helpText: 'صرافی ایرانی' },
+  wallex: { id: 'wallex', name: 'ولکس', nameEn: 'Wallex', category: 'iranian', color: '#0EA5E9', helpText: 'صرافی ایرانی' },
+  ramzinex: { id: 'ramzinex', name: 'رمزینکس', nameEn: 'Ramzinex', category: 'iranian', color: '#10B981', helpText: 'صرافی ایرانی' },
+  abarshode: { id: 'abarshode', name: 'آبرشده', nameEn: 'Abarshode', category: 'iranian', color: '#F59E0B', helpText: 'صرافی ایرانی' },
+  binance: { id: 'binance', name: 'بایننس', nameEn: 'Binance', category: 'international', color: '#F0B90B', helpText: 'صرافی بین‌المللی' },
+  bybit: { id: 'bybit', name: 'بای‌بیت', nameEn: 'Bybit', category: 'international', color: '#F7A600', helpText: 'صرافی بین‌المللی' },
+  okx: { id: 'okx', name: 'او‌کی‌ایکس', nameEn: 'OKX', category: 'international', color: '#1A1A1A', helpText: 'صرافی بین‌المللی' },
+  mexc: { id: 'mexc', name: 'ام‌ایکس‌سی', nameEn: 'MEXC', category: 'international', color: '#1972F5', helpText: 'صرافی بین‌المللی' },
+  kucoin: { id: 'kucoin', name: 'کوکوین', nameEn: 'KuCoin', category: 'international', color: '#24AE8F', helpText: 'صرافی بین‌المللی' },
+  gateio: { id: 'gateio', name: 'گیت‌آی‌او', nameEn: 'Gate.io', category: 'international', color: '#2354E6', helpText: 'صرافی بین‌المللی' },
+  bitget: { id: 'bitget', name: 'بیت‌گت', nameEn: 'Bitget', category: 'international', color: '#00F0FF', helpText: 'صرافی بین‌المللی' },
+  kraken: { id: 'kraken', name: 'کراکن', nameEn: 'Kraken', category: 'international', color: '#5841D8', helpText: 'صرافی بین‌المللی' },
+  coinbase: { id: 'coinbase', name: 'کوین‌بیس', nameEn: 'Coinbase', category: 'international', color: '#0052FF', helpText: 'صرافی بین‌المللی' },
 };
 
 async function loadConnections(): Promise<ExchangeConnection[]> {
   try {
     const stored = await AsyncStorage.getItem(CONNECTIONS_KEY);
     return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 async function saveConnections(list: ExchangeConnection[]): Promise<void> {
@@ -140,6 +92,7 @@ interface Props {
 export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
   const [connections, setConnections] = useState<ExchangeConnection[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showExchangePicker, setShowExchangePicker] = useState(false);
   const [newExchange, setNewExchange] = useState('nobitex');
   const [newLabel, setNewLabel] = useState('');
   const [newApiKey, setNewApiKey] = useState('');
@@ -153,7 +106,6 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
     loadConnections().then(setConnections);
   }, []);
 
-  // گزارش total USD به والد
   useEffect(() => {
     if (onPortfolioUsd) {
       const total = Object.values(balances).reduce((s, b) => s + (b.usd || 0), 0);
@@ -223,8 +175,7 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
 
   const fetchBalance = useCallback(async (conn: ExchangeConnection) => {
     setFetching((prev) => ({ ...prev, [conn.id]: true }));
-    // در نسخه کامل باید با API صرافی و سرور پراکسی موجودی واقعی بگیرد
-    // فعلاً placeholder
+    // در نسخه کامل باید با API صرافی موجودی واقعی بگیرد
     setTimeout(() => {
       setBalances((prev) => ({
         ...prev,
@@ -239,6 +190,10 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
     }, 500);
   }, []);
 
+  const refreshAll = useCallback(() => {
+    connections.filter((c) => c.enabled).forEach((c) => fetchBalance(c));
+  }, [connections, fetchBalance]);
+
   const totalUsd = Object.values(balances).reduce((s, b) => s + (b.usd || 0), 0);
 
   return (
@@ -246,18 +201,10 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
       <View style={styles.header}>
         <Landmark size={16} color={colors.dark.accent} />
         <Text style={styles.title}>ارز دیجیتال (صرافی‌ها)</Text>
-        <Pressable
-          onPress={() => {
-            connections.filter((c) => c.enabled).forEach((c) => fetchBalance(c));
-          }}
-          style={styles.refreshBtn}
-        >
+        <Pressable onPress={refreshAll} style={styles.refreshBtn}>
           <RefreshCw size={14} color={colors.dark.textSecondary} />
         </Pressable>
-        <Pressable
-          onPress={() => setShowAddForm(!showAddForm)}
-          style={styles.addBtn}
-        >
+        <Pressable onPress={() => setShowAddForm(!showAddForm)} style={styles.addBtn}>
           <Plus size={14} color={colors.dark.accent} />
         </Pressable>
       </View>
@@ -272,24 +219,23 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
 
       {showAddForm && (
         <View style={styles.addForm}>
-          <Text style={styles.formLabel}>صرافی</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.exchangeScroller}>
-            {Object.values(EXCHANGES).map((ex) => (
-              <Pressable
-                key={ex.id}
-                onPress={() => setNewExchange(ex.id)}
-                style={[
-                  styles.exchangeChip,
-                  newExchange === ex.id && styles.exchangeChipActive,
-                  { borderColor: newExchange === ex.id ? ex.color : colors.dark.border },
-                ]}
-              >
-                <Text style={[styles.exchangeChipText, newExchange === ex.id && { color: ex.color }]}>
-                  {ex.name} {ex.category === 'iranian' ? '🇮🇷' : '🌍'}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          {/* منوی کشویی انتخاب صرافی */}
+          <Text style={styles.formLabel}>صرافی (روی باکس زیر کلیک کنید)</Text>
+          <Pressable
+            onPress={() => setShowExchangePicker(true)}
+            style={styles.exchangePicker}
+          >
+            <View style={[styles.exchangePickerIcon, { backgroundColor: EXCHANGES[newExchange].color + '22' }]}>
+              <Landmark size={14} color={EXCHANGES[newExchange].color} />
+            </View>
+            <View style={styles.exchangePickerInfo}>
+              <Text style={styles.exchangePickerName}>
+                {EXCHANGES[newExchange].name} {EXCHANGES[newExchange].category === 'iranian' ? '🇮🇷' : '🌍'}
+              </Text>
+              <Text style={styles.exchangePickerCat}>{EXCHANGES[newExchange].helpText}</Text>
+            </View>
+            <ChevronDown size={14} color={colors.dark.textSecondary} />
+          </Pressable>
 
           <Text style={styles.formLabel}>نام دلخواه (اختیاری)</Text>
           <TextInput
@@ -347,7 +293,7 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
           <View style={styles.securityNote}>
             <Lock size={11} color={colors.dark.green} />
             <Text style={styles.securityText}>
-              کلیدها با AES-256 رمزنگاری و فقط در دستگاه ذخیره می‌شوند. فقط دسترسی Read-Only بسازید!
+              کلیدها با رمزنگاری و فقط در دستگاه ذخیره می‌شوند. فقط دسترسی Read-Only بسازید!
             </Text>
           </View>
 
@@ -386,10 +332,7 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
                   </Text>
                 </View>
                 <Pressable
-                  onPress={(e) => {
-                    e.stopPropagation?.();
-                    handleToggle(conn.id);
-                  }}
+                  onPress={() => handleToggle(conn.id)}
                   style={styles.toggleBtn}
                 >
                   {conn.enabled ? (
@@ -399,10 +342,7 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
                   )}
                 </Pressable>
                 <Pressable
-                  onPress={(e) => {
-                    e.stopPropagation?.();
-                    fetchBalance(conn);
-                  }}
+                  onPress={() => fetchBalance(conn)}
                   style={styles.refreshConnBtn}
                 >
                   {isFetching ? (
@@ -454,6 +394,53 @@ export default function ExchangeAssetsSection({ onPortfolioUsd }: Props) {
           );
         })
       )}
+
+      {/* Modal منوی کشویی صرافی‌ها */}
+      <Modal
+        visible={showExchangePicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowExchangePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>انتخاب صرافی</Text>
+              <Pressable onPress={() => setShowExchangePicker(false)} style={styles.modalCloseBtn}>
+                <Text style={styles.modalCloseText}>بستن</Text>
+              </Pressable>
+            </View>
+            <ScrollView style={styles.modalList}>
+              {Object.values(EXCHANGES).map((ex) => (
+                <Pressable
+                  key={ex.id}
+                  onPress={() => {
+                    setNewExchange(ex.id);
+                    setShowExchangePicker(false);
+                  }}
+                  style={[
+                    styles.exchangeOption,
+                    newExchange === ex.id && styles.exchangeOptionActive,
+                  ]}
+                >
+                  <View style={[styles.exchangeOptionIcon, { backgroundColor: ex.color + '22' }]}>
+                    <Landmark size={16} color={ex.color} />
+                  </View>
+                  <View style={styles.exchangeOptionInfo}>
+                    <Text style={styles.exchangeOptionName}>
+                      {ex.name} {ex.category === 'iranian' ? '🇮🇷' : '🌍'}
+                    </Text>
+                    <Text style={styles.exchangeOptionCat}>{ex.helpText}</Text>
+                  </View>
+                  {newExchange === ex.id && (
+                    <Text style={styles.exchangeOptionCheck}>✓</Text>
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -523,26 +510,37 @@ const styles = createThemedStyles(() =>
       marginBottom: 4,
       marginTop: 8,
     },
-    exchangeScroller: {
-      flexDirection: 'row',
-      gap: 6,
-      marginBottom: 4,
-    },
-    exchangeChip: {
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 8,
+    exchangePicker: {
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
+      gap: 8,
+      padding: 10,
       backgroundColor: colors.dark.surface,
+      borderRadius: 8,
       borderWidth: 1,
-      marginLeft: 6,
+      borderColor: colors.dark.border,
     },
-    exchangeChipActive: {
-      backgroundColor: colors.dark.accentDim,
+    exchangePickerIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
-    exchangeChipText: {
-      fontSize: 10,
-      fontWeight: '600',
+    exchangePickerInfo: {
+      flex: 1,
+    },
+    exchangePickerName: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.dark.text,
+      textAlign: 'right',
+    },
+    exchangePickerCat: {
+      fontSize: 9,
       color: colors.dark.textSecondary,
+      textAlign: 'right',
+      marginTop: 2,
     },
     input: {
       backgroundColor: colors.dark.surface,
@@ -628,12 +626,8 @@ const styles = createThemedStyles(() =>
       textAlign: 'right',
       marginTop: 1,
     },
-    toggleBtn: {
-      padding: 4,
-    },
-    refreshConnBtn: {
-      padding: 4,
-    },
+    toggleBtn: { padding: 4 },
+    refreshConnBtn: { padding: 4 },
     connExpanded: {
       padding: 10,
       paddingTop: 0,
@@ -686,6 +680,91 @@ const styles = createThemedStyles(() =>
       fontSize: 10,
       color: colors.dark.red,
       fontWeight: '600',
+    },
+    // Modal styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    modalContent: {
+      width: '100%',
+      maxWidth: 400,
+      maxHeight: '80%',
+      backgroundColor: colors.dark.surface,
+      borderRadius: 14,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.dark.border,
+    },
+    modalHeader: {
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.dark.border,
+    },
+    modalTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.dark.text,
+      textAlign: 'right',
+    },
+    modalCloseBtn: {
+      padding: 4,
+    },
+    modalCloseText: {
+      fontSize: 11,
+      color: colors.dark.accent,
+      fontWeight: '600',
+    },
+    modalList: {
+      padding: 10,
+    },
+    exchangeOption: {
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
+      gap: 10,
+      padding: 10,
+      backgroundColor: colors.dark.card,
+      borderRadius: 8,
+      marginBottom: 6,
+      borderWidth: 1,
+      borderColor: colors.dark.border,
+    },
+    exchangeOptionActive: {
+      borderColor: colors.dark.accent,
+      backgroundColor: colors.dark.accentDim,
+    },
+    exchangeOptionIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    exchangeOptionInfo: {
+      flex: 1,
+    },
+    exchangeOptionName: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.dark.text,
+      textAlign: 'right',
+    },
+    exchangeOptionCat: {
+      fontSize: 9,
+      color: colors.dark.textSecondary,
+      textAlign: 'right',
+      marginTop: 2,
+    },
+    exchangeOptionCheck: {
+      fontSize: 16,
+      color: colors.dark.accent,
+      fontWeight: '700',
     },
   })
 );

@@ -1,6 +1,6 @@
 // ============================================================
-//  UpdateBanner - بنر نمایش آپدیت درون‌برنامه‌ای
-//  هنگام موجود بودن نسخه جدید، در بالای اپ نمایش داده می‌شود
+//  UpdateBanner - بنر آپدیت درون‌برنامه‌ای
+//  بالای برنامه نمایش داده می‌شود
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
@@ -40,7 +40,6 @@ export function UpdateBanner() {
       if (mounted) setChecking(false);
     })();
 
-    // چک آپدیت هر ۱۵ دقیقه
     const interval = setInterval(() => {
       fetchUpdateInfo();
     }, 15 * 60 * 1000);
@@ -52,7 +51,6 @@ export function UpdateBanner() {
     };
   }, []);
 
-  // اگر در حال چک کردن است یا آپدیدی نیست یا dismiss شده → چیزی نشان نده
   if (checking || !info || !info.available) return null;
   if (dismissed === info.latestVersion) return null;
 
@@ -97,7 +95,7 @@ export function UpdateBanner() {
             <Download size={14} color={colors.dark.background} />
           )}
           <Text style={styles.downloadBtnText}>
-            {downloading ? 'در حال باز کردن...' : 'دانلود'}
+            {downloading ? '...' : 'دانلود'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -134,9 +132,7 @@ const styles = createThemedStyles(() =>
       justifyContent: 'center',
       alignItems: 'center',
     },
-    textWrap: {
-      flex: 1,
-    },
+    textWrap: { flex: 1 },
     title: {
       fontSize: 13,
       fontWeight: '700',
@@ -175,8 +171,6 @@ const styles = createThemedStyles(() =>
       fontWeight: '700',
       color: colors.dark.background,
     },
-    dismissBtn: {
-      padding: 6,
-    },
+    dismissBtn: { padding: 6 },
   })
 );

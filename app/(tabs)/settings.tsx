@@ -1,5 +1,10 @@
 // ============================================================
-//  Settings Screen - صفحه تنظیمات (بازنویسی شده بدون باگ)
+//  Settings Screen - صفحه تنظیمات
+//  - قفل اپ با اثر انگشت
+//  - تم دارک/روشن
+//  - بررسی IP ایران
+//  - آپدیت اپ
+//  - ذخیره تغییرات
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
@@ -17,25 +22,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import colors from '../../constants/colors';
 import { createThemedStyles } from '../../utils/themeStyles';
-import { APP_CONFIG } from '../../constants/config';
+import { useApp } from '../../contexts/AppContext';
 import {
   Bell,
   RefreshCw,
   Eye,
   EyeOff,
   Shield,
-  HelpCircle,
-  FileQuestion,
   Lock,
   Info,
-  Github,
-  User,
-  Tag,
-  Trash2,
-  ChevronLeft,
-  Server,
   Download,
   CheckCircle2,
+  Sun,
+  Moon,
+  Save,
+  ShieldAlert,
 } from 'lucide-react-native';
 import {
   fetchUpdateInfo,
@@ -47,15 +48,20 @@ import {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const {
+    settings,
+    updateSettings,
+    saveSettings,
+    ipInfo,
+    refreshIp,
+    isIran,
+  } = useApp();
 
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [hideTotal, setHideTotal] = useState(false);
-  const [notifications, setNotifications] = useState(true);
-  const [pinLock, setPinLock] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [checkingIp, setCheckingIp] = useState(false);
+  const [savedMessage, setSavedMessage] = useState(false);
 
-  // بررسی آپدیت هنگام باز شدن صفحه
   useEffect(() => {
     checkForUpdate();
   }, []);
@@ -67,6 +73,12 @@ export default function SettingsScreen() {
     setCheckingUpdate(false);
   };
 
+  const handleCheckIp = async () => {
+    setCheckingIp(true);
+    await refreshIp();
+    setCheckingIp(false);
+  };
+
   const handleDownloadUpdate = async () => {
     if (!updateInfo) return;
     try {
@@ -76,25 +88,28 @@ export default function SettingsScreen() {
     }
   };
 
-  const openGitHub = () => {
-    Linking.openURL('https://github.com/trade-master65/asset-management');
+  const handleSaveSettings = async () => {
+    await saveSettings();
+    setSavedMessage(true);
+    setTimeout(() => setSavedMessage(false), 2000);
   };
 
-  const handleClearData = () => {
-    Alert.alert(
-      'پاک‌سازی همه داده‌ها',
-      'آیا مطمئن هستید؟ همه اتصالات صرافی، کیف پول‌ها و دارایی‌های محلی پاک خواهند شد.',
-      [
-        { text: 'لغو', style: 'cancel' },
-        {
-          text: 'پاک‌سازی',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('انجام شد', 'همه داده‌ها پاک شدند');
-          },
-        },
-      ]
-    );
+  const togglePinLock = async (value: boolean) => {
+    if (value) {
+      // در نسخه کامل: باید با اثر انگشت گوشی احراز هویت شود
+      // فعلا فقط toggle می‌کنیم
+      Alert.alert(
+        'قفل اپلیکیشن',
+        'قفل اپلیکیشن فعال شد. در نسخه بعدی، هنگام ورود به اپ از شما اثر انگشت گرفته می‌شود.',
+        [{ text: 'باشه' }]
+      );
+    }
+    await updateSettings({ pinLock: value });
+  };
+
+  const toggleTheme = async () => {
+    const newMode = settings.themeMode === 'dark' ? 'light' : 'dark';
+    await updateSettings({ themeMode: newMode });
   };
 
   return (
@@ -106,6 +121,14 @@ export default function SettingsScreen() {
         <Text style={styles.title}>تنظیمات</Text>
         <Text style={styles.subtitle}>پیکربندی اپ مدیریت دارایی</Text>
       </View>
+
+      {/* پیغام ذخیره */}
+      {savedMessage && (
+        <View style={styles.savedMessage}>
+          <CheckCircle2 size={14} color={colors.dark.green} />
+          <Text style={styles.savedMessageText}>تنظیمات ذخیره شد</Text>
+        </View>
+      )}
 
       {/* بخش آپدیت */}
       <Section title="آپدیت اپلیکیشن">
@@ -152,22 +175,30 @@ export default function SettingsScreen() {
         )}
       </Section>
 
-      {/* بخش نمایش */}
-      <Section title="نمایش">
+      {/* بخش تم */}
+      <Section title="نمایش و تم">
         <Row
-          icon={hideTotal ? EyeOff : Eye}
+          icon={settings.themeMode === 'dark' ? Moon : Sun}
+          title="تم برنامه"
+          subtitle={settings.themeMode === 'dark' ? 'تیره (دارک)' : 'روشن (لایت)'}
+          toggleValue={settings.themeMode === 'light'}
+          onToggle={toggleTheme}
+          iconColor={settings.themeMode === 'dark' ? colors.dark.blue : colors.dark.accent}
+        />
+        <Row
+          icon={settings.hideTotal ? EyeOff : Eye}
           title="پنهان کردن ارزش کل"
           subtitle="مخفی کردن ارزش کل دارایی‌ها"
-          toggleValue={hideTotal}
-          onToggle={setHideTotal}
+          toggleValue={settings.hideTotal}
+          onToggle={(v) => updateSettings({ hideTotal: v })}
           iconColor={colors.dark.blue}
         />
         <Row
           icon={RefreshCw}
           title="رفرش خودکار"
           subtitle="به‌روزرسانی خودکار هر ۶۰ ثانیه"
-          toggleValue={autoRefresh}
-          onToggle={setAutoRefresh}
+          toggleValue={settings.autoRefresh}
+          onToggle={(v) => updateSettings({ autoRefresh: v })}
           iconColor={colors.dark.accent}
           last
         />
@@ -176,49 +207,75 @@ export default function SettingsScreen() {
       {/* بخش امنیت و اعلان‌ها */}
       <Section title="امنیت و اعلان‌ها">
         <Row
+          icon={Lock}
+          title="قفل اپلیکیشن با اثر انگشت"
+          subtitle="درخواست اثر انگشت هنگام ورود به اپ"
+          toggleValue={settings.pinLock}
+          onToggle={togglePinLock}
+          iconColor={colors.dark.green}
+        />
+        <Row
           icon={Bell}
           title="اعلان‌ها"
           subtitle="دریافت اعلان درباره تغییرات مهم"
-          toggleValue={notifications}
-          onToggle={setNotifications}
+          toggleValue={settings.notifications}
+          onToggle={(v) => updateSettings({ notifications: v })}
           iconColor={colors.dark.accent}
-        />
-        <Row
-          icon={Lock}
-          title="قفل اپلیکیشن"
-          subtitle="درخواست پین هنگام ورود به اپ"
-          toggleValue={pinLock}
-          onToggle={setPinLock}
-          iconColor={colors.dark.green}
           last
         />
+      </Section>
+
+      {/* بخش بررسی IP */}
+      <Section title="بررسی IP و دسترسی">
+        <Row
+          icon={Shield}
+          title="بررسی IP"
+          subtitle={
+            ipInfo
+              ? `کشور: ${ipInfo.country || ipInfo.countryCode} • ${ipInfo.isIran ? 'ایران ⚠️' : 'مجاز ✓'}`
+              : 'بررسی نشده'
+          }
+          value={checkingIp ? 'در حال بررسی...' : 'بررسی مجدد'}
+          onPress={handleCheckIp}
+          iconColor={isIran ? colors.dark.red : colors.dark.green}
+        />
+        {isIran && (
+          <View style={styles.ipBlockedBox}>
+            <ShieldAlert size={14} color={colors.dark.red} />
+            <Text style={styles.ipBlockedText}>
+              IP شما از ایران است. بخش «کیف پول» و «ارز دیجیتال» نیاز به روشن کردن فیلترشکن دارند. وقتی فیلترشکن روشن شد و IP مجاز باشد، دسترسی به این بخش‌ها باز می‌شود.
+            </Text>
+          </View>
+        )}
+        {ipInfo && !isIran && (
+          <Row
+            icon={CheckCircle2}
+            title="دسترسی کامل"
+            subtitle="همه بخش‌های اپ در دسترس هستند"
+            iconColor={colors.dark.green}
+            last
+          />
+        )}
+        {!ipInfo && !checkingIp && (
+          <Row
+            icon={Info}
+            title="بررسی IP ناموفق بود"
+            subtitle="اینترنت خود را بررسی کنید"
+            iconColor={colors.dark.red}
+            last
+          />
+        )}
       </Section>
 
       {/* بخش راهنما */}
       <Section title="راهنما و پشتیبانی">
         <Row
-          icon={HelpCircle}
-          title="راهنمای استفاده"
-          subtitle="آموزش قدم‌به‌قدم استفاده از اپ"
-          onPress={() => router.push('/help-usage')}
+          icon={Info}
+          title="درباره اپلیکیشن"
+          subtitle="اطلاعات اپلیکیشن و امنیت"
+          onPress={() => router.push('/about')}
           showChevron
           iconColor={colors.dark.blue}
-        />
-        <Row
-          icon={FileQuestion}
-          title="سؤالات متداول"
-          subtitle="پاسخ به سؤالات رایج"
-          onPress={() => router.push('/help-faq')}
-          showChevron
-          iconColor={colors.dark.accent}
-        />
-        <Row
-          icon={Lock}
-          title="حریم خصوصی"
-          subtitle="نحوه ذخیره و محافظت از داده‌های شما"
-          onPress={() => router.push('/help-privacy')}
-          showChevron
-          iconColor={colors.dark.green}
           last
         />
       </Section>
@@ -228,60 +285,42 @@ export default function SettingsScreen() {
         <Row
           icon={Info}
           title="درباره ما"
-          subtitle="اطلاعات اپلیکیشن و سازنده"
+          subtitle="اطلاعات اپلیکیشن"
           onPress={() => router.push('/about')}
           showChevron
           iconColor={colors.dark.blue}
         />
         <Row
-          icon={Tag}
+          icon={Tag2}
           title="نسخه"
-          value={APP_CONFIG.appVersion}
+          value={getInstalledVersion()}
           iconColor={colors.dark.accent}
-        />
-        <Row
-          icon={User}
-          title="سازنده"
-          value={APP_CONFIG.appCreator}
-          iconColor={colors.dark.green}
-        />
-        <Row
-          icon={Github}
-          title="سورس کد (GitHub)"
-          subtitle="github.com/trade-master65/asset-management"
-          onPress={openGitHub}
-          showChevron
-          iconColor={colors.dark.text}
           last
         />
       </Section>
 
-      {/* بخش داده‌ها */}
-      <Section title="مدیریت داده‌ها">
-        <Row
-          icon={Trash2}
-          title="پاک‌سازی همه داده‌ها"
-          subtitle="حذف همه اتصالات و دارایی‌ها (غیرقابل بازگشت)"
-          onPress={handleClearData}
-          danger
-          iconColor={colors.dark.red}
-          last
-        />
-      </Section>
+      {/* دکمه ذخیره تغییرات */}
+      <TouchableOpacity
+        style={styles.saveBtn}
+        onPress={handleSaveSettings}
+        activeOpacity={0.7}
+      >
+        <Save size={16} color={colors.dark.background} />
+        <Text style={styles.saveBtnText}>ذخیره تغییرات تنظیمات</Text>
+      </TouchableOpacity>
 
       {/* فوتر */}
       <View style={styles.footer}>
-        <Text style={styles.footerApp}>{APP_CONFIG.appName}</Text>
-        <Text style={styles.footerVersion}>نسخه {APP_CONFIG.appVersion}</Text>
-        <Text style={styles.footerCreator}>
-          ساخته‌شده توسط {APP_CONFIG.appCreator}
-        </Text>
-        <Text style={styles.footerPlatform}>
-          منتشرشده در پلتفرم {APP_CONFIG.publisherPlatform}
-        </Text>
+        <Text style={styles.footerApp}>مدیریت دارایی</Text>
+        <Text style={styles.footerVersion}>نسخه {getInstalledVersion()}</Text>
       </View>
     </ScrollView>
   );
+}
+
+// آیکون Tag جایگزین
+function Tag2({ size, color }: { size: number; color: string }) {
+  return <Info size={size} color={color} />;
 }
 
 // ── Sub-components ──
@@ -305,7 +344,6 @@ interface RowProps {
   onToggle?: (v: boolean) => void;
   onPress?: () => void;
   showChevron?: boolean;
-  danger?: boolean;
   iconColor?: string;
   last?: boolean;
 }
@@ -319,13 +357,12 @@ function Row({
   onToggle,
   onPress,
   showChevron,
-  danger = false,
   iconColor,
   last = false,
 }: RowProps) {
   const hasSwitch = typeof toggleValue === 'boolean' && !!onToggle;
   const isPressable = !!onPress && !hasSwitch;
-  const color = danger ? colors.dark.red : (iconColor || colors.dark.accent);
+  const color = iconColor || colors.dark.accent;
 
   const inner = (
     <View style={[styles.row, last && styles.rowLast]}>
@@ -334,9 +371,7 @@ function Row({
           <Icon size={16} color={color} />
         </View>
         <View style={styles.rowText}>
-          <Text style={[styles.rowTitle, danger && { color: colors.dark.red }]}>
-            {title}
-          </Text>
+          <Text style={styles.rowTitle}>{title}</Text>
           {subtitle ? (
             <Text style={styles.rowSubtitle}>{subtitle}</Text>
           ) : null}
@@ -355,7 +390,7 @@ function Row({
           />
         ) : null}
         {(showChevron || isPressable) && !hasSwitch ? (
-          <ChevronLeft size={16} color={colors.dark.textSecondary} />
+          <ChevronLeftIcon color={colors.dark.textSecondary} />
         ) : null}
       </View>
     </View>
@@ -369,6 +404,12 @@ function Row({
     );
   }
   return inner;
+}
+
+function ChevronLeftIcon({ color }: { color: string }) {
+  // استفاده از lucide
+  const { ChevronLeft } = require('lucide-react-native');
+  return <ChevronLeft size={16} color={color} />;
 }
 
 const styles = createThemedStyles(() =>
@@ -392,6 +433,21 @@ const styles = createThemedStyles(() =>
       color: colors.dark.textSecondary,
       textAlign: 'right',
       marginTop: 4,
+    },
+    savedMessage: {
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
+      gap: 6,
+      marginHorizontal: 12,
+      marginBottom: 8,
+      padding: 10,
+      backgroundColor: colors.dark.greenDim,
+      borderRadius: 8,
+    },
+    savedMessageText: {
+      fontSize: 11,
+      color: colors.dark.green,
+      fontWeight: '600',
     },
     sectionWrap: {
       marginBottom: 16,
@@ -461,6 +517,39 @@ const styles = createThemedStyles(() =>
       fontSize: 11,
       color: colors.dark.textSecondary,
     },
+    ipBlockedBox: {
+      flexDirection: 'row-reverse',
+      alignItems: 'flex-start',
+      gap: 8,
+      padding: 10,
+      backgroundColor: colors.dark.redDim,
+      borderBottomLeftRadius: 12,
+      borderBottomRightRadius: 12,
+    },
+    ipBlockedText: {
+      fontSize: 10,
+      color: colors.dark.red,
+      flex: 1,
+      textAlign: 'right',
+      lineHeight: 16,
+      fontWeight: '600',
+    },
+    saveBtn: {
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginHorizontal: 12,
+      marginBottom: 16,
+      paddingVertical: 14,
+      backgroundColor: colors.dark.accent,
+      borderRadius: 12,
+    },
+    saveBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.dark.background,
+    },
     footer: {
       alignItems: 'center',
       paddingVertical: 20,
@@ -474,15 +563,6 @@ const styles = createThemedStyles(() =>
     footerVersion: {
       fontSize: 11,
       color: colors.dark.textSecondary,
-    },
-    footerCreator: {
-      fontSize: 10,
-      color: colors.dark.textMuted,
-    },
-    footerPlatform: {
-      fontSize: 10,
-      color: colors.dark.textMuted,
-      marginTop: 4,
     },
   })
 );

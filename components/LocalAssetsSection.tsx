@@ -472,9 +472,10 @@ export default function LocalAssetsSection({
 }
 
 // PnL card
-const PNL_PERIODS = [7, 30, 90, 180] as const;
+const PNL_PERIODS = [1, 7, 30, 90, 180] as const;
 type LocalPnlPeriod = (typeof PNL_PERIODS)[number];
 const PNL_PERIOD_LABEL: Record<number, string> = {
+  1: 'امروز',
   7: '۷ روز',
   30: '۳۰ روز',
   90: '۹۰ روز',
@@ -889,20 +890,22 @@ const styles = createThemedStyles(() =>
       flexGrow: 1,
       backgroundColor: colors.dark.surface,
       borderRadius: 8,
-      paddingVertical: 6,
-      paddingHorizontal: 6,
+      paddingVertical: 10,
+      paddingHorizontal: 8,
       alignItems: 'center',
       borderWidth: 1,
       borderColor: colors.dark.border,
     },
     priceChipLabel: {
-      fontSize: 9,
+      fontSize: 11,
+      fontWeight: '600',
       color: colors.dark.textSecondary,
       textAlign: 'center',
+      marginBottom: 4,
     },
     priceChipValue: {
-      fontSize: 11,
-      fontWeight: '700',
+      fontSize: 14,
+      fontWeight: '800',
       color: colors.dark.text,
       marginTop: 2,
     },

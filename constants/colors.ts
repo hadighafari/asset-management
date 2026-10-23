@@ -1,6 +1,6 @@
 /**
  * colors.ts — Theme runtime for the whole app.
- * مطابق پروژه GitHub ostad2fan/pompay
+ * پشتیبانی از تم تیره و روشن
  */
 export type ThemeMode = 'dark' | 'light';
 

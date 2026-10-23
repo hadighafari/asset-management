@@ -1,10 +1,10 @@
 // ============================================================
 //  Wallet Screen — صفحه اصلی مدیریت دارایی
-//  شامل 4 تب فرعی:
-//   1. ارز دیجیتال (صرافی‌ها)
-//   2. دارایی ریالی و فلزات
-//   3. پیش‌بینی طلا
-//   4. کیف پول بلاکچین
+//  4 تب در یک صفحه (نه اسکرول افقی):
+//   1. ریالی و فلزات
+//   2. پیش‌بینی طلا
+//   3. کیف پول بلاکچین
+//   4. ارز دیجیتال
 // ============================================================
 
 import React, { useState, useCallback } from 'react';
@@ -15,32 +15,32 @@ import {
   ScrollView,
   Pressable,
   RefreshControl,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import colors from '../../constants/colors';
 import { createThemedStyles } from '../../utils/themeStyles';
 import { fetchUsdtTomanPrice } from '../../utils/nobitexApi';
+import { UpdateBanner } from '../../components/UpdateBanner';
 import LocalAssetsSection from '../../components/LocalAssetsSection';
 import GoldPredictionSection from '../../components/GoldPredictionSection';
 import BlockchainWalletsSection from '../../components/BlockchainWalletsSection';
 import ExchangeAssetsSection from '../../components/ExchangeAssetsSection';
+import { useApp } from '../../contexts/AppContext';
 import {
-  Landmark,
   Coins,
   Gem,
   Wallet,
+  Landmark,
   TrendingUp,
+  Lock,
+  ShieldAlert,
 } from 'lucide-react-native';
 
-type Tab = 'crypto' | 'rial' | 'gold' | 'blockchain';
+type Tab = 'rial' | 'gold' | 'blockchain' | 'crypto';
 
-const TABS: { id: Tab; label: string; icon: any }[] = [
-  { id: 'crypto', label: 'ارز دیجیتال', icon: Landmark },
-  { id: 'rial', label: 'ریالی و فلزات', icon: Coins },
-  { id: 'gold', label: 'پیش‌بینی طلا', icon: Gem },
-  { id: 'blockchain', label: 'کیف بلاکچین', icon: Wallet },
-];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function WalletScreen() {
   const insets = useSafeAreaInsets();
@@ -49,8 +49,8 @@ export default function WalletScreen() {
   const [blockchainToman, setBlockchainToman] = useState(0);
   const [hasBlockchainWallet, setHasBlockchainWallet] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const { isIran, canAccessCrypto, ipInfo, refreshIp } = useApp();
 
-  // قیمت USDT/Toman برای تبدیل
   const tomanQuery = useQuery({
     queryKey: ['usdt-toman'],
     queryFn: fetchUsdtTomanPrice,
@@ -62,9 +62,9 @@ export default function WalletScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await tomanQuery.refetch();
+    await Promise.all([tomanQuery.refetch(), refreshIp()]);
     setRefreshing(false);
-  }, [tomanQuery]);
+  }, [tomanQuery, refreshIp]);
 
   const onPortfolioUsd = useCallback((usd: number) => {
     setPortfolioUsd(usd);
@@ -74,6 +74,17 @@ export default function WalletScreen() {
     setBlockchainToman(toman);
     setHasBlockchainWallet(hasWallet);
   }, []);
+
+  // تعریف تب‌ها
+  const TABS: { id: Tab; label: string; icon: any }[] = [
+    { id: 'rial', label: 'ریالی و فلزات', icon: Coins },
+    { id: 'gold', label: 'پیش‌بینی طلا', icon: Gem },
+    { id: 'blockchain', label: 'کیف پول', icon: Wallet },
+    { id: 'crypto', label: 'ارز دیجیتال', icon: Landmark },
+  ];
+
+  // عرض هر تب - 4 تب در یک ردیف
+  const tabWidth = (SCREEN_WIDTH - 24 - 18) / 4; // 24 padding, 18 gaps
 
   return (
     <ScrollView
@@ -106,43 +117,54 @@ export default function WalletScreen() {
         </View>
       </View>
 
-      {/* Update Banner removed from here - shown only in settings */}
+      {/* Update Banner */}
+      <UpdateBanner />
 
-      {/* Tab Selector */}
-      <View style={styles.tabsContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsScroller}
-        >
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => setActiveTab(tab.id)}
+      {/* Iran IP Warning */}
+      {isIran && (
+        <View style={styles.ipWarning}>
+          <ShieldAlert size={16} color={colors.dark.red} />
+          <Text style={styles.ipWarningText}>
+            IP شما از ایران است. بخش «کیف پول» و «ارز دیجیتال» نیاز به روشن کردن فیلترشکن دارند.
+          </Text>
+        </View>
+      )}
+
+      {/* 4 تب در یک ردیف */}
+      <View style={styles.tabsRow}>
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          const isLocked = (tab.id === 'blockchain' || tab.id === 'crypto') && !canAccessCrypto;
+          return (
+            <Pressable
+              key={tab.id}
+              onPress={() => setActiveTab(tab.id)}
+              style={[
+                styles.tab,
+                { width: tabWidth },
+                isActive && styles.tabActive,
+                isLocked && styles.tabLocked,
+              ]}
+            >
+              <Icon
+                size={16}
+                color={isLocked ? colors.dark.textMuted : (isActive ? colors.dark.accent : colors.dark.textSecondary)}
+              />
+              <Text
                 style={[
-                  styles.tab,
-                  isActive && styles.tabActive,
+                  styles.tabText,
+                  isActive && styles.tabTextActive,
+                  isLocked && styles.tabTextLocked,
                 ]}
+                numberOfLines={1}
               >
-                <Icon
-                  size={14}
-                  color={isActive ? colors.dark.accent : colors.dark.textSecondary}
-                />
-                <Text
-                  style={[
-                    styles.tabText,
-                    isActive && styles.tabTextActive,
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                {tab.label}
+              </Text>
+              {isLocked && <Lock size={10} color={colors.dark.textMuted} />}
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Total Portfolio (visible on all tabs) */}
@@ -159,10 +181,6 @@ export default function WalletScreen() {
       </View>
 
       {/* Active Tab Content */}
-      {activeTab === 'crypto' && (
-        <ExchangeAssetsSection onPortfolioUsd={onPortfolioUsd} />
-      )}
-
       {activeTab === 'rial' && (
         <LocalAssetsSection
           usdtToToman={usdtToToman}
@@ -175,12 +193,43 @@ export default function WalletScreen() {
       {activeTab === 'gold' && <GoldPredictionSection />}
 
       {activeTab === 'blockchain' && (
-        <BlockchainWalletsSection
-          onBlockchainToman={onBlockchainToman}
-          usdtToToman={usdtToToman}
-        />
+        canAccessCrypto ? (
+          <BlockchainWalletsSection
+            onBlockchainToman={onBlockchainToman}
+            usdtToToman={usdtToToman}
+          />
+        ) : (
+          <LockedSection
+            title="کیف پول بلاکچین"
+            message="برای استفاده از این بخش و خواندن اطلاعات، فیلترشکن را روشن کنید."
+          />
+        )
+      )}
+
+      {activeTab === 'crypto' && (
+        canAccessCrypto ? (
+          <ExchangeAssetsSection onPortfolioUsd={onPortfolioUsd} />
+        ) : (
+          <LockedSection
+            title="ارز دیجیتال"
+            message="برای استفاده از این بخش و خواندن اطلاعات، فیلترشکن را روشن کنید."
+          />
+        )
       )}
     </ScrollView>
+  );
+}
+
+// کامپوننت بخش قفل‌شده
+function LockedSection({ title, message }: { title: string; message: string }) {
+  return (
+    <View style={styles.lockedCard}>
+      <View style={styles.lockedIconWrap}>
+        <Lock size={32} color={colors.dark.red} />
+      </View>
+      <Text style={styles.lockedTitle}>{title}</Text>
+      <Text style={styles.lockedMessage}>{message}</Text>
+    </View>
   );
 }
 
@@ -217,38 +266,60 @@ const styles = createThemedStyles(() =>
       justifyContent: 'center',
       alignItems: 'center',
     },
-    tabsContainer: {
-      marginHorizontal: 12,
-      marginBottom: 12,
-    },
-    tabsScroller: {
-      gap: 6,
-      paddingHorizontal: 4,
-    },
-    tab: {
+    ipWarning: {
       flexDirection: 'row-reverse',
       alignItems: 'center',
-      gap: 4,
-      paddingVertical: 8,
+      gap: 8,
+      marginHorizontal: 12,
+      marginBottom: 8,
+      padding: 10,
+      backgroundColor: colors.dark.redDim,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.dark.red + '44',
+    },
+    ipWarningText: {
+      fontSize: 10,
+      color: colors.dark.red,
+      flex: 1,
+      textAlign: 'right',
+      fontWeight: '600',
+    },
+    tabsRow: {
+      flexDirection: 'row-reverse',
       paddingHorizontal: 12,
+      gap: 6,
+      marginBottom: 12,
+    },
+    tab: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      paddingVertical: 10,
       borderRadius: 10,
       backgroundColor: colors.dark.surface,
       borderWidth: 1,
       borderColor: colors.dark.border,
-      marginLeft: 6,
     },
     tabActive: {
       backgroundColor: colors.dark.accentDim,
       borderColor: colors.dark.accent,
     },
+    tabLocked: {
+      opacity: 0.5,
+    },
     tabText: {
-      fontSize: 11,
+      fontSize: 9,
       fontWeight: '600',
       color: colors.dark.textSecondary,
+      textAlign: 'center',
     },
     tabTextActive: {
       color: colors.dark.accent,
       fontWeight: '700',
+    },
+    tabTextLocked: {
+      color: colors.dark.textMuted,
     },
     portfolioCard: {
       marginHorizontal: 12,
@@ -275,6 +346,37 @@ const styles = createThemedStyles(() =>
       fontSize: 11,
       color: colors.dark.textSecondary,
       marginTop: 4,
+    },
+    lockedCard: {
+      marginHorizontal: 12,
+      padding: 32,
+      backgroundColor: colors.dark.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.dark.red + '33',
+      alignItems: 'center',
+    },
+    lockedIconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.dark.redDim,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    lockedTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.dark.text,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    lockedMessage: {
+      fontSize: 12,
+      color: colors.dark.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
     },
   })
 );

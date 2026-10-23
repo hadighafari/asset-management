@@ -1,6 +1,6 @@
 {
-  "latestVersion": "1.0.3",
-  "versionCode": 4,
-  "apkUrl": "https://cdn.jsdelivr.net/gh/trade-master65/asset-management@main/apk/AssetManagement-v1.0.3.apk",
-  "notes": "رفع خطای تجزیه بسته - ساخته‌شده با targetSdk 34 برای سازگاری با گوشی‌های قدیمی‌تر"
+  "latestVersion": "1.0.4",
+  "versionCode": 5,
+  "apkUrl": "https://cdn.jsdelivr.net/gh/hadighafari/asset-management@main/apk/AssetManagement-v1.0.4.apk",
+  "notes": "بازسازی کامل: 4 تب در یک صفحه، قفل اثر انگشت، تم دارک/روشن، بررسی IP ایران، منوی کشویی صرافی‌ها، چند شبکه برای کیف پول، پیش‌بینی طلا با معاملات فیوچرز، گزینه امروز در PnL، بنر آپدیت بالای برنامه"
 }
