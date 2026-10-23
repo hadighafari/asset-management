@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "مدیریت دارایی",
+    "slug": "asset-management",
+    "version": "1.0.3",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "assetmanagement",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0F14"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.trademaster65.assetmanagement"
+    },
+    "android": {
+      "package": "com.trademaster65.assetmanagement",
+      "versionCode": 4,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B0F14"
+      },
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_WITH_YOUR_EAS_PROJECT_ID"
+      },
+      "railwayProxyUrl": "https://YOUR-RAILWAY-APP.up.railway.app",
+      "appVersion": "1.0.3",
+      "appCreator": "trade_master65",
+      "appName": "مدیریت دارایی"
+    },
+    "owner": "trade_master65"
+  }
+}

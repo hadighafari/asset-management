@@ -1,0 +1,6 @@
+{
+  "latestVersion": "1.0.3",
+  "versionCode": 4,
+  "apkUrl": "https://cdn.jsdelivr.net/gh/trade-master65/asset-management@main/apk/AssetManagement-v1.0.3.apk",
+  "notes": "رفع خطای تجزیه بسته - ساخته‌شده با targetSdk 34 برای سازگاری با گوشی‌های قدیمی‌تر"
+}
