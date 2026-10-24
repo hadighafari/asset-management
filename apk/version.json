@@ -1,6 +1,6 @@
 {
-  "latestVersion": "1.0.6",
-  "versionCode": 7,
-  "apkUrl": "https://cdn.jsdelivr.net/gh/trade-master65/asset-management@main/apk/AssetManagement-v1.0.6.apk",
-  "notes": "رفع باگ گیر کردن در صفحه لود + لوگو فول اسکرین واقعی + بهبود startup"
+  "latestVersion": "1.0.10",
+  "versionCode": 11,
+  "apkUrl": "https://cdn.jsdelivr.net/gh/trade-master65/asset-management@main/apk/AssetManagement-v1.0.10.apk",
+  "notes": "حذف صفحه یافت نشد + چیدمان برعکس تب‌ها + فیلد مثقال + نقره 999 و 925 جداگانه + قیمت انس + معاملات آتی بورس ایران + ویرایش/حذف کیف پول + شبکه تونکوین + نمایش موجودی + ایکون صرافی‌ها"
 }

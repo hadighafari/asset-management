@@ -1,13 +1,9 @@
 // ============================================================
 //  Wallet Screen — صفحه اصلی مدیریت دارایی
-//  4 تب در یک صفحه (نه اسکرول افقی):
-//   1. ریالی و فلزات
-//   2. پیش‌بینی طلا
-//   3. کیف پول بلاکچین
-//   4. ارز دیجیتال
+//  با بررسی IP ایران - غیرفعال‌سازی کیف/ارز در صورت ایران بودن
 // ============================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,17 +13,15 @@ import {
   RefreshControl,
   Dimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import colors from '../../constants/colors';
 import { createThemedStyles } from '../../utils/themeStyles';
 import { fetchUsdtTomanPrice } from '../../utils/nobitexApi';
-import { UpdateBanner } from '../../components/UpdateBanner';
+import { checkIp, IpInfo, clearIpCache } from '../../utils/ipCheck';
 import LocalAssetsSection from '../../components/LocalAssetsSection';
 import GoldPredictionSection from '../../components/GoldPredictionSection';
 import BlockchainWalletsSection from '../../components/BlockchainWalletsSection';
 import ExchangeAssetsSection from '../../components/ExchangeAssetsSection';
-import { useApp } from '../../contexts/AppContext';
 import {
   Coins,
   Gem,
@@ -43,13 +37,12 @@ type Tab = 'rial' | 'gold' | 'blockchain' | 'crypto';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function WalletScreen() {
-  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>('rial');
   const [portfolioUsd, setPortfolioUsd] = useState(0);
   const [blockchainToman, setBlockchainToman] = useState(0);
   const [hasBlockchainWallet, setHasBlockchainWallet] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const { isIran, canAccessCrypto, ipInfo, refreshIp } = useApp();
+  const [ipInfo, setIpInfo] = useState<IpInfo | null>(null);
 
   const tomanQuery = useQuery({
     queryKey: ['usdt-toman'],
@@ -59,10 +52,32 @@ export default function WalletScreen() {
   });
 
   const usdtToToman = tomanQuery.data?.usdtToToman ?? 0;
+  const isIran = ipInfo?.isIran ?? false;
+  const canAccessCrypto = !isIran;
+
+  // بررسی IP در background
+  const refreshIp = useCallback(async () => {
+    try {
+      clearIpCache();
+      const info = await checkIp();
+      if (info) setIpInfo(info);
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(refreshIp, 1500);
+    const interval = setInterval(refreshIp, 5 * 60 * 1000);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [refreshIp]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([tomanQuery.refetch(), refreshIp()]);
+    try {
+      await Promise.all([tomanQuery.refetch(), refreshIp()]);
+    } catch (e) {}
     setRefreshing(false);
   }, [tomanQuery, refreshIp]);
 
@@ -75,22 +90,24 @@ export default function WalletScreen() {
     setHasBlockchainWallet(hasWallet);
   }, []);
 
-  // تعریف تب‌ها
+  // ترتیب تب‌ها برعکس (راست به چپ): ارز دیجیتال، کیف پول، طلا، ریالی
+  // اما چون RTL فعال است، اولین آیتم در سمت راست نمایش داده می‌شود
+  // پس می‌خواهیم کاربر از راست بشنوده: ارز دیجیتال، کیف پول، طلا، ریالی
+  // ولی می‌خواهیم تب ریالی فعال باشد به‌صورت پیش‌فرض
   const TABS: { id: Tab; label: string; icon: any }[] = [
-    { id: 'rial', label: 'ریالی و فلزات', icon: Coins },
-    { id: 'gold', label: 'پیش‌بینی طلا', icon: Gem },
-    { id: 'blockchain', label: 'کیف پول', icon: Wallet },
     { id: 'crypto', label: 'ارز دیجیتال', icon: Landmark },
+    { id: 'blockchain', label: 'کیف پول', icon: Wallet },
+    { id: 'gold', label: 'پیش‌بینی طلا', icon: Gem },
+    { id: 'rial', label: 'ریالی و فلزات', icon: Coins },
   ];
 
-  // عرض هر تب - 4 تب در یک ردیف
-  const tabWidth = (SCREEN_WIDTH - 24 - 18) / 4; // 24 padding, 18 gaps
+  const tabWidth = (SCREEN_WIDTH - 24 - 18) / 4;
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={{
-        paddingTop: insets.top + 16,
+        paddingTop: 50,
         paddingBottom: 40,
       }}
       refreshControl={
@@ -117,20 +134,17 @@ export default function WalletScreen() {
         </View>
       </View>
 
-      {/* Update Banner */}
-      <UpdateBanner />
-
       {/* Iran IP Warning */}
       {isIran && (
         <View style={styles.ipWarning}>
           <ShieldAlert size={16} color={colors.dark.red} />
           <Text style={styles.ipWarningText}>
-            IP شما از ایران است. بخش «کیف پول» و «ارز دیجیتال» نیاز به روشن کردن فیلترشکن دارند.
+            IP شما از ایران است. بخش «کیف پول» و «ارز دیجیتال» نیاز به روشن کردن فیلترشکن دارند. وقتی فیلترشکن روشن شد و IP مجاز باشد، دسترسی باز می‌شود.
           </Text>
         </View>
       )}
 
-      {/* 4 تب در یک ردیف */}
+      {/* 4 تب در یک ردیف - چیدمان راست به چپ (RTL) */}
       <View style={styles.tabsRow}>
         {TABS.map((tab) => {
           const Icon = tab.icon;
@@ -167,7 +181,7 @@ export default function WalletScreen() {
         })}
       </View>
 
-      {/* Total Portfolio (visible on all tabs) */}
+      {/* Total Portfolio */}
       <View style={styles.portfolioCard}>
         <Text style={styles.portfolioLabel}>مجموع کل دارایی‌ها</Text>
         <Text style={styles.portfolioValue}>

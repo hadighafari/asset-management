@@ -1,20 +1,17 @@
 // ============================================================
 //  Tabs Layout - نوار تب پایین
-//  تب‌ها: مدیریت دارایی، تنظیمات
+//  ورود مستقیم به wallet
 // ============================================================
 
 import React from 'react';
 import { Tabs } from 'expo-router';
 import colors from '../../constants/colors';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Wallet,
   Settings as SettingsIcon,
 } from 'lucide-react-native';
 
 export default function TabsLayout() {
-  const insets = useSafeAreaInsets();
-
   return (
     <Tabs
       screenOptions={{
@@ -23,8 +20,8 @@ export default function TabsLayout() {
           backgroundColor: colors.dark.surface,
           borderTopColor: colors.dark.border,
           borderTopWidth: 1,
-          height: 60 + insets.bottom,
-          paddingBottom: insets.bottom,
+          height: 60,
+          paddingBottom: 6,
           paddingTop: 6,
         },
         tabBarActiveTintColor: colors.dark.accent,

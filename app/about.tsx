@@ -11,7 +11,6 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import colors from '../constants/colors';
 import { createThemedStyles } from '../utils/themeStyles';
@@ -25,13 +24,12 @@ import {
 import { getInstalledVersion } from '../utils/appUpdate';
 
 export default function AboutScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 40 }}
+      contentContainerStyle={{ paddingTop: 50, paddingBottom: 40 }}
     >
       <View style={styles.header}>
         <TouchableOpacity

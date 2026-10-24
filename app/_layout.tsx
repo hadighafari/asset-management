@@ -1,31 +1,19 @@
 // ============================================================
 //  Root Layout - لایوت اصلی اپ
-//  splash screen با لوگو تمام صفحه
+//  با SafeAreaProvider برای جلوگیری از crash
 // ============================================================
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
-import {
-  View,
-  StyleSheet,
-  I18nManager,
-  LogBox,
-  Image,
-  Dimensions,
-  ActivityIndicator,
-} from 'react-native';
+import { View, StyleSheet, I18nManager, LogBox } from 'react-native';
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import colors from '../constants/colors';
 import { AppProvider } from '../contexts/AppContext';
-import { ErrorBoundary } from '../components/ErrorBoundary';
 
 LogBox.ignoreAllLogs(true);
 I18nManager.forceRTL(true);
-
-// جلوگیری از بسته شدن خودکار splash پیش‌فرض
-SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,27 +26,8 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const [appReady, setAppReady] = useState(false);
-
-  useEffect(() => {
-    // بستن splash پیش‌فرض expo بلافاصله
-    SplashScreen.hideAsync().catch(() => {});
-
-    // نمایش splash سفارشی برای 2 ثانیه
-    const timer = setTimeout(() => {
-      setAppReady(true);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // نمایش splash با لوگو تمام صفحه
-  if (!appReady) {
-    return <FullScreenSplash />;
-  }
-
   return (
-    <ErrorBoundary>
+    <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AppProvider>
           <View style={styles.container}>
@@ -72,36 +41,13 @@ export default function RootLayout() {
             >
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="about" />
+              <Stack.Screen name="+not-found" />
+              <Stack.Screen name="+native-intent" />
             </Stack>
           </View>
         </AppProvider>
       </QueryClientProvider>
-    </ErrorBoundary>
-  );
-}
-
-// splash با لوگو تمام صفحه - واقعاً کل صفحه
-function FullScreenSplash() {
-  const { width, height } = Dimensions.get('window');
-
-  return (
-    <View style={splashStyles.container}>
-      {/* لوگو تمام صفحه - resizeMode=stretch برای پر کردن کل صفحه */}
-      <Image
-        source={require('../assets/icon.png')}
-        style={{
-          width: width,
-          height: height,
-        }}
-        resizeMode="stretch"
-      />
-      {/* لایه تیره برای خوانایی loading indicator */}
-      <View style={splashStyles.overlay} />
-      {/* loading indicator در پایین صفحه */}
-      <View style={splashStyles.loadingWrap}>
-        <ActivityIndicator size="large" color={colors.dark.accent} />
-      </View>
-    </View>
+    </SafeAreaProvider>
   );
 }
 
@@ -109,27 +55,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.dark.background,
-  },
-});
-
-const splashStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0B0E11',
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  loadingWrap: {
-    position: 'absolute',
-    bottom: 80,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
   },
 });

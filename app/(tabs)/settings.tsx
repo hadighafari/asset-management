@@ -1,10 +1,5 @@
 // ============================================================
-//  Settings Screen - صفحه تنظیمات
-//  - قفل اپ با اثر انگشت
-//  - تم دارک/روشن
-//  - بررسی IP ایران
-//  - آپدیت اپ
-//  - ذخیره تغییرات
+//  Settings Screen - صفحه تنظیمات (ساده شده)
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
@@ -16,13 +11,10 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
-  Linking,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import colors from '../../constants/colors';
 import { createThemedStyles } from '../../utils/themeStyles';
-import { useApp } from '../../contexts/AppContext';
 import {
   Bell,
   RefreshCw,
@@ -37,6 +29,7 @@ import {
   Moon,
   Save,
   ShieldAlert,
+  Tag,
 } from 'lucide-react-native';
 import {
   fetchUpdateInfo,
@@ -44,38 +37,40 @@ import {
   AppUpdateInfo,
   openApkDownload,
 } from '../../utils/appUpdate';
+import { checkIp, IpInfo, clearIpCache } from '../../utils/ipCheck';
 
 export default function SettingsScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const {
-    settings,
-    updateSettings,
-    saveSettings,
-    ipInfo,
-    refreshIp,
-    isIran,
-  } = useApp();
+
+  // state های محلی - بدون context
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [hideTotal, setHideTotal] = useState(false);
+  const [notifications, setNotifications] = useState(true);
+  const [pinLock, setPinLock] = useState(false);
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
 
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [ipInfo, setIpInfo] = useState<IpInfo | null>(null);
   const [checkingIp, setCheckingIp] = useState(false);
   const [savedMessage, setSavedMessage] = useState(false);
 
-  useEffect(() => {
-    checkForUpdate();
-  }, []);
-
   const checkForUpdate = async () => {
     setCheckingUpdate(true);
-    const info = await fetchUpdateInfo();
-    setUpdateInfo(info);
+    try {
+      const info = await fetchUpdateInfo();
+      setUpdateInfo(info);
+    } catch (e) {}
     setCheckingUpdate(false);
   };
 
   const handleCheckIp = async () => {
     setCheckingIp(true);
-    await refreshIp();
+    try {
+      clearIpCache();
+      const info = await checkIp();
+      setIpInfo(info);
+    } catch (e) {}
     setCheckingIp(false);
   };
 
@@ -88,41 +83,39 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleSaveSettings = async () => {
-    await saveSettings();
+  const handleSaveSettings = () => {
     setSavedMessage(true);
     setTimeout(() => setSavedMessage(false), 2000);
   };
 
-  const togglePinLock = async (value: boolean) => {
+  const togglePinLock = (value: boolean) => {
     if (value) {
-      // در نسخه کامل: باید با اثر انگشت گوشی احراز هویت شود
-      // فعلا فقط toggle می‌کنیم
       Alert.alert(
         'قفل اپلیکیشن',
         'قفل اپلیکیشن فعال شد. در نسخه بعدی، هنگام ورود به اپ از شما اثر انگشت گرفته می‌شود.',
         [{ text: 'باشه' }]
       );
     }
-    await updateSettings({ pinLock: value });
+    setPinLock(value);
   };
 
-  const toggleTheme = async () => {
-    const newMode = settings.themeMode === 'dark' ? 'light' : 'dark';
-    await updateSettings({ themeMode: newMode });
+  const toggleTheme = () => {
+    const newMode = themeMode === 'dark' ? 'light' : 'dark';
+    setThemeMode(newMode);
   };
+
+  const isIran = ipInfo?.isIran ?? false;
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 40 }}
+      contentContainerStyle={{ paddingTop: 50, paddingBottom: 40 }}
     >
       <View style={styles.header}>
         <Text style={styles.title}>تنظیمات</Text>
         <Text style={styles.subtitle}>پیکربندی اپ مدیریت دارایی</Text>
       </View>
 
-      {/* پیغام ذخیره */}
       {savedMessage && (
         <View style={styles.savedMessage}>
           <CheckCircle2 size={14} color={colors.dark.green} />
@@ -178,27 +171,27 @@ export default function SettingsScreen() {
       {/* بخش تم */}
       <Section title="نمایش و تم">
         <Row
-          icon={settings.themeMode === 'dark' ? Moon : Sun}
+          icon={themeMode === 'dark' ? Moon : Sun}
           title="تم برنامه"
-          subtitle={settings.themeMode === 'dark' ? 'تیره (دارک)' : 'روشن (لایت)'}
-          toggleValue={settings.themeMode === 'light'}
+          subtitle={themeMode === 'dark' ? 'تیره (دارک)' : 'روشن (لایت)'}
+          toggleValue={themeMode === 'light'}
           onToggle={toggleTheme}
-          iconColor={settings.themeMode === 'dark' ? colors.dark.blue : colors.dark.accent}
+          iconColor={themeMode === 'dark' ? colors.dark.blue : colors.dark.accent}
         />
         <Row
-          icon={settings.hideTotal ? EyeOff : Eye}
+          icon={hideTotal ? EyeOff : Eye}
           title="پنهان کردن ارزش کل"
           subtitle="مخفی کردن ارزش کل دارایی‌ها"
-          toggleValue={settings.hideTotal}
-          onToggle={(v) => updateSettings({ hideTotal: v })}
+          toggleValue={hideTotal}
+          onToggle={setHideTotal}
           iconColor={colors.dark.blue}
         />
         <Row
           icon={RefreshCw}
           title="رفرش خودکار"
           subtitle="به‌روزرسانی خودکار هر ۶۰ ثانیه"
-          toggleValue={settings.autoRefresh}
-          onToggle={(v) => updateSettings({ autoRefresh: v })}
+          toggleValue={autoRefresh}
+          onToggle={setAutoRefresh}
           iconColor={colors.dark.accent}
           last
         />
@@ -210,7 +203,7 @@ export default function SettingsScreen() {
           icon={Lock}
           title="قفل اپلیکیشن با اثر انگشت"
           subtitle="درخواست اثر انگشت هنگام ورود به اپ"
-          toggleValue={settings.pinLock}
+          toggleValue={pinLock}
           onToggle={togglePinLock}
           iconColor={colors.dark.green}
         />
@@ -218,8 +211,8 @@ export default function SettingsScreen() {
           icon={Bell}
           title="اعلان‌ها"
           subtitle="دریافت اعلان درباره تغییرات مهم"
-          toggleValue={settings.notifications}
-          onToggle={(v) => updateSettings({ notifications: v })}
+          toggleValue={notifications}
+          onToggle={setNotifications}
           iconColor={colors.dark.accent}
           last
         />
@@ -267,19 +260,6 @@ export default function SettingsScreen() {
         )}
       </Section>
 
-      {/* بخش راهنما */}
-      <Section title="راهنما و پشتیبانی">
-        <Row
-          icon={Info}
-          title="درباره اپلیکیشن"
-          subtitle="اطلاعات اپلیکیشن و امنیت"
-          onPress={() => router.push('/about')}
-          showChevron
-          iconColor={colors.dark.blue}
-          last
-        />
-      </Section>
-
       {/* بخش درباره ما */}
       <Section title="درباره اپلیکیشن">
         <Row
@@ -291,7 +271,7 @@ export default function SettingsScreen() {
           iconColor={colors.dark.blue}
         />
         <Row
-          icon={Tag2}
+          icon={Tag}
           title="نسخه"
           value={getInstalledVersion()}
           iconColor={colors.dark.accent}
@@ -318,19 +298,12 @@ export default function SettingsScreen() {
   );
 }
 
-// آیکون Tag جایگزین
-function Tag2({ size, color }: { size: number; color: string }) {
-  return <Info size={size} color={color} />;
-}
-
 // ── Sub-components ──
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={styles.sectionWrap}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.section}>
-        {children}
-      </View>
+      <View style={styles.section}>{children}</View>
     </View>
   );
 }
@@ -372,15 +345,11 @@ function Row({
         </View>
         <View style={styles.rowText}>
           <Text style={styles.rowTitle}>{title}</Text>
-          {subtitle ? (
-            <Text style={styles.rowSubtitle}>{subtitle}</Text>
-          ) : null}
+          {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
         </View>
       </View>
       <View style={styles.rowLeft}>
-        {value ? (
-          <Text style={styles.rowValue}>{value}</Text>
-        ) : null}
+        {value ? <Text style={styles.rowValue}>{value}</Text> : null}
         {hasSwitch ? (
           <Switch
             value={toggleValue}
@@ -407,7 +376,6 @@ function Row({
 }
 
 function ChevronLeftIcon({ color }: { color: string }) {
-  // استفاده از lucide
   const { ChevronLeft } = require('lucide-react-native');
   return <ChevronLeft size={16} color={color} />;
 }
