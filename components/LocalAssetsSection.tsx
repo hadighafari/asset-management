@@ -1,12 +1,11 @@
 // ============================================================
 //  LocalAssetsSection — «دارایی ریالی و فلزات»
-//  مطابق پروژه GitHub ostad2fan/pompay
-//
-//  شامل:
-//   - قیمت‌های لحظه‌ای تومانی (طلا 18/24، نقره 999/925، سکه‌ها، دلار)
-//   - ورودی کاربر: ریال نقدی، دلار کاغذی، تتر، طلا (گرم)، نقره، سکه‌ها
-//   - محاسبه مجموع کل دارایی به تومان
-//   - کارت سود/زیان 7/30/90/180 روزه
+//  - فیلد مثقال
+//  - نقره 999 و 925 جداگانه
+//  - قیمت انس جهانی
+//  - فونت درشت‌تر
+//  - تایم‌فریم از امروز به 180
+//  - راست‌چین کامل
 // ============================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -51,7 +50,7 @@ import {
   TgjuClosePoint,
 } from '../utils/tgjuHistoryApi';
 
-const ASSETS_KEY = '@local_assets_v1';
+const ASSETS_KEY = '@local_assets_v3';
 
 interface LocalAssets {
   rialCash: string;
@@ -59,8 +58,9 @@ interface LocalAssets {
   usdtQty: string;
   goldGrams: string;
   goldKarat: '18' | '24';
-  silverGrams: string;
-  silverType: '999' | '925';
+  mesghalQty: string;
+  silver999Grams: string;
+  silver925Grams: string;
   coinEmami: string;
   coinBahar: string;
   coinNim: string;
@@ -73,8 +73,9 @@ const EMPTY_ASSETS: LocalAssets = {
   usdtQty: '',
   goldGrams: '',
   goldKarat: '18',
-  silverGrams: '',
-  silverType: '999',
+  mesghalQty: '',
+  silver999Grams: '',
+  silver925Grams: '',
   coinEmami: '',
   coinBahar: '',
   coinNim: '',
@@ -84,7 +85,10 @@ const EMPTY_ASSETS: LocalAssets = {
 async function loadAssets(): Promise<LocalAssets> {
   try {
     const stored = await AsyncStorage.getItem(ASSETS_KEY);
-    if (stored) return { ...EMPTY_ASSETS, ...(JSON.parse(stored) as Partial<LocalAssets>) };
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { ...EMPTY_ASSETS, ...parsed };
+    }
   } catch {}
   return EMPTY_ASSETS;
 }
@@ -93,6 +97,24 @@ async function saveAssets(a: LocalAssets): Promise<void> {
   try {
     await AsyncStorage.setItem(ASSETS_KEY, JSON.stringify(a));
   } catch {}
+}
+
+// گرفتن قیمت انس جهانی طلا
+async function fetchGoldOuncePrice(): Promise<number> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch('https://api.gold-api.com/price/XAU', {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('HTTP error');
+    const data = await res.json();
+    return data.price || 0;
+  } catch (e) {
+    return 0;
+  }
 }
 
 interface Props {
@@ -120,15 +142,11 @@ export default function LocalAssetsSection({
 
   useEffect(() => {
     let mounted = true;
-    loadAssets().then((a) => {
-      if (mounted) setAssets(a);
-    });
+    loadAssets().then((a) => { if (mounted) setAssets(a); });
     AsyncStorage.getItem(EXPANDED_KEY).then((v) => {
       if (mounted && v === '0') setExpanded(false);
     }).catch(() => {});
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   const toggleExpanded = useCallback(() => {
@@ -146,7 +164,16 @@ export default function LocalAssetsSection({
     staleTime: 60 * 1000,
   });
 
+  // قیمت انس جهانی
+  const ounceQuery = useQuery({
+    queryKey: ['gold-ounce'],
+    queryFn: fetchGoldOuncePrice,
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+  });
+
   const p = pricesQuery.data;
+  const ouncePrice = ounceQuery.data ?? 0;
 
   const update = useCallback((patch: Partial<LocalAssets>) => {
     setAssets((prev) => {
@@ -158,16 +185,22 @@ export default function LocalAssetsSection({
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['iran-market-prices'] });
+    queryClient.invalidateQueries({ queryKey: ['gold-ounce'] });
   }, [queryClient]);
 
+  // محاسبات
   const rialValue = parseTomanInput(assets.rialCash) || 0;
   const usdRate = p && p.dollar > 0 ? p.dollar : usdtToToman;
   const usdQty = parseTomanInput(assets.usdCash) || 0;
   const usdValue = usdQty > 0 && usdRate > 0 ? usdQty * usdRate : 0;
   const goldUnit = assets.goldKarat === '24' ? p?.gold24 ?? 0 : p?.gold18 ?? 0;
   const goldValue = (parseTomanInput(assets.goldGrams) || 0) * goldUnit;
-  const silverUnit = assets.silverType === '925' ? p?.silver925 ?? 0 : p?.silver999 ?? 0;
-  const silverValue = (parseTomanInput(assets.silverGrams) || 0) * silverUnit;
+  const mesghalUnit = p?.mesghal ?? 0;
+  const mesghalValue = (parseTomanInput(assets.mesghalQty) || 0) * mesghalUnit;
+  const silver999Unit = p?.silver999 ?? 0;
+  const silver925Unit = p?.silver925 ?? 0;
+  const silver999Value = (parseTomanInput(assets.silver999Grams) || 0) * silver999Unit;
+  const silver925Value = (parseTomanInput(assets.silver925Grams) || 0) * silver925Unit;
   const coinValues = {
     emami: (parseTomanInput(assets.coinEmami) || 0) * (p?.coinEmami ?? 0),
     bahar: (parseTomanInput(assets.coinBahar) || 0) * (p?.coinBahar ?? 0),
@@ -181,16 +214,13 @@ export default function LocalAssetsSection({
   const blockchainValue = hasBlockchainWallet ? blockchainToman : 0;
 
   const grandTotal =
-    rialValue + usdValue + usdtManualToman + goldValue + silverValue + coinsValue + cryptoToman + blockchainValue;
+    rialValue + usdValue + usdtManualToman + goldValue + mesghalValue +
+    silver999Value + silver925Value + coinsValue + cryptoToman + blockchainValue;
 
   const hasAnyInput =
-    rialValue > 0 ||
-    usdValue > 0 ||
-    usdtManualToman > 0 ||
-    goldValue > 0 ||
-    silverValue > 0 ||
-    coinsValue > 0 ||
-    totalPortfolioUsd > 0 ||
+    rialValue > 0 || usdValue > 0 || usdtManualToman > 0 || goldValue > 0 ||
+    mesghalValue > 0 || silver999Value > 0 || silver925Value > 0 ||
+    coinsValue > 0 || totalPortfolioUsd > 0 ||
     (hasBlockchainWallet && blockchainToman > 0);
 
   const minutesOld = p ? Math.max(1, Math.round((Date.now() - p.updatedAt) / 60000)) : 0;
@@ -199,31 +229,32 @@ export default function LocalAssetsSection({
     <View style={styles.card}>
       {/* header */}
       <View style={styles.header}>
-        <Landmark size={16} color={colors.dark.accent} />
+        <Landmark size={18} color={colors.dark.accent} />
         <Text style={styles.title}>دارایی ریالی و فلزات</Text>
         <Pressable onPress={refresh} style={styles.refreshBtn}>
-          {pricesQuery.isFetching ? (
+          {pricesQuery.isFetching || ounceQuery.isFetching ? (
             <ActivityIndicator size="small" color={colors.dark.accent} />
           ) : (
-            <RefreshCw size={14} color={colors.dark.textSecondary} />
+            <RefreshCw size={16} color={colors.dark.textSecondary} />
           )}
         </Pressable>
         <Pressable onPress={toggleExpanded} style={styles.chevronBtn}>
           {expanded ? (
-            <ChevronUp size={14} color={colors.dark.textSecondary} />
+            <ChevronUp size={16} color={colors.dark.textSecondary} />
           ) : (
-            <ChevronDown size={14} color={colors.dark.textSecondary} />
+            <ChevronDown size={16} color={colors.dark.textSecondary} />
           )}
         </Pressable>
       </View>
 
-      {/* live price list */}
-      <Text style={styles.blockLabel}>قیمت‌های لحظه‌ای (تومان)</Text>
+      {/* live price list - با فونت درشت‌تر */}
+      <Text style={styles.blockLabel}>قیمت‌های لحظه‌ای</Text>
       <View style={styles.priceBlock}>
         <View style={styles.priceGrid}>
           <PriceChip label="طلای ۱۸" value={p?.gold18} />
           <PriceChip label="طلای ۲۴" value={p?.gold24} />
           <PriceChip label="مثقال" value={p?.mesghal} />
+          <PriceChip label="انس جهانی" value={ouncePrice > 0 ? ouncePrice : undefined} isUsd />
           <PriceChip label="نقره ۹۹۹" value={p?.silver999} />
           <PriceChip label="نقره ۹۲۵" value={p?.silver925} />
           <PriceChip label="سکه امامی" value={p?.coinEmami} />
@@ -245,8 +276,7 @@ export default function LocalAssetsSection({
       <View style={styles.totalBox}>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>
-            مجموع کل دارایی (ریال + دلار + تتر + طلا + نقره + سکه + ارز
-            {hasBlockchainWallet ? ' + کیف بلاکچین' : ''})
+            مجموع کل دارایی{hasBlockchainWallet ? ' + کیف بلاکچین' : ''}
           </Text>
         </View>
         <Text style={styles.totalAmount}>
@@ -257,9 +287,7 @@ export default function LocalAssetsSection({
         )}
         <View style={styles.totalBreakdown}>
           <Text style={styles.breakdownText}>
-            ریال {formatToman(rialValue)} • دلار {formatToman(usdValue)} • تتر{' '}
-            {formatToman(usdtManualToman)} • طلا {formatToman(goldValue)} • نقره{' '}
-            {formatToman(silverValue)} • سکه {formatToman(coinsValue)} • ارز {formatToman(cryptoToman)}
+            ریال {formatToman(rialValue)} • دلار {formatToman(usdValue)} • تتر {formatToman(usdtManualToman)} • طلا {formatToman(goldValue)} • مثقال {formatToman(mesghalValue)} • نقره {formatToman(silver999Value + silver925Value)} • سکه {formatToman(coinsValue)} • ارز {formatToman(cryptoToman)}
             {hasBlockchainWallet ? ` • کیف بلاکچین ${formatToman(blockchainValue)}` : ''}
           </Text>
         </View>
@@ -278,16 +306,16 @@ export default function LocalAssetsSection({
       <Pressable onPress={toggleExpanded} style={styles.myAssetsHeader}>
         <Text style={styles.myAssetsTitle}>دارایی‌های من</Text>
         {expanded ? (
-          <ChevronUp size={14} color={colors.dark.textSecondary} />
+          <ChevronUp size={16} color={colors.dark.textSecondary} />
         ) : (
-          <ChevronDown size={14} color={colors.dark.textSecondary} />
+          <ChevronDown size={16} color={colors.dark.textSecondary} />
         )}
       </Pressable>
 
       {expanded && (
         <>
           <AssetRow
-            icon={<Banknote size={14} color={colors.dark.accent} />}
+            icon={<Banknote size={16} color={colors.dark.accent} />}
             label="ریال / تومان نقدی"
             value={assets.rialCash}
             onChangeText={(t) => update({ rialCash: t })}
@@ -298,7 +326,7 @@ export default function LocalAssetsSection({
             valueHint="مقدار را به تومان وارد کنید"
           />
           <AssetRow
-            icon={<DollarSign size={14} color={colors.dark.green} />}
+            icon={<DollarSign size={16} color={colors.dark.green} />}
             label="دلار کاغذی (فیزیکی)"
             value={assets.usdCash}
             onChangeText={(t) => update({ usdCash: t })}
@@ -308,14 +336,12 @@ export default function LocalAssetsSection({
             tomanValue={usdValue}
             valueHint={
               usdRate > 0
-                ? `نرخ هر دلار: ${formatFullToman(usdRate)} تومان${
-                    p && p.dollar > 0 ? '' : ' (تتر)'
-                  }`
+                ? `نرخ هر دلار: ${formatFullToman(usdRate)} تومان${p && p.dollar > 0 ? '' : ' (تتر)'}`
                 : 'نرخ دلار در حال دریافت'
             }
           />
           <AssetRow
-            icon={<DollarSign size={14} color={colors.dark.green} />}
+            icon={<DollarSign size={16} color={colors.dark.green} />}
             label="تتر (USDT)"
             value={assets.usdtQty}
             onChangeText={(t) => update({ usdtQty: t })}
@@ -330,7 +356,7 @@ export default function LocalAssetsSection({
             }
           />
           <AssetRow
-            icon={<Gem size={14} color={colors.dark.accent} />}
+            icon={<Gem size={16} color={colors.dark.accent} />}
             label="طلا (گرم)"
             value={assets.goldGrams}
             onChangeText={(t) => update({ goldGrams: t })}
@@ -338,9 +364,7 @@ export default function LocalAssetsSection({
             keyboardType="decimal-pad"
             unitLabel="گرم"
             tomanValue={goldValue}
-            valueHint={
-              goldUnit > 0 ? `قیمت هر گرم: ${formatFullToman(goldUnit)}` : 'قیمت در حال دریافت'
-            }
+            valueHint={goldUnit > 0 ? `قیمت هر گرم: ${formatFullToman(goldUnit)}` : 'قیمت در حال دریافت'}
           >
             <Selector
               options={[
@@ -352,31 +376,40 @@ export default function LocalAssetsSection({
             />
           </AssetRow>
           <AssetRow
-            icon={<Medal size={14} color={colors.dark.textSecondary} />}
-            label="نقره (گرم)"
-            value={assets.silverGrams}
-            onChangeText={(t) => update({ silverGrams: t })}
+            icon={<Gem size={16} color={colors.dark.accent} />}
+            label="مثقال طلا"
+            value={assets.mesghalQty}
+            onChangeText={(t) => update({ mesghalQty: t })}
+            placeholder="مثلاً 5"
+            keyboardType="decimal-pad"
+            unitLabel="مثقال"
+            tomanValue={mesghalValue}
+            valueHint={mesghalUnit > 0 ? `قیمت هر مثقال: ${formatFullToman(mesghalUnit)}` : 'قیمت در حال دریافت'}
+          />
+          <AssetRow
+            icon={<Medal size={16} color={colors.dark.textSecondary} />}
+            label="نقره ۹۹۹ (گرم)"
+            value={assets.silver999Grams}
+            onChangeText={(t) => update({ silver999Grams: t })}
             placeholder="مثلاً 100"
             keyboardType="decimal-pad"
             unitLabel="گرم"
-            tomanValue={silverValue}
-            valueHint={
-              silverUnit > 0
-                ? `قیمت هر گرم: ${formatFullToman(silverUnit)}`
-                : 'قیمت در حال دریافت'
-            }
-          >
-            <Selector
-              options={[
-                { key: '999', label: '۹۹۹' },
-                { key: '925', label: '۹۲۵' },
-              ]}
-              active={assets.silverType}
-              onSelect={(k) => update({ silverType: k as '999' | '925' })}
-            />
-          </AssetRow>
+            tomanValue={silver999Value}
+            valueHint={silver999Unit > 0 ? `قیمت هر گرم: ${formatFullToman(silver999Unit)}` : 'قیمت در حال دریافت'}
+          />
           <AssetRow
-            icon={<Coins size={14} color={colors.dark.accent} />}
+            icon={<Medal size={16} color={colors.dark.textSecondary} />}
+            label="نقره ۹۲۵ (گرم)"
+            value={assets.silver925Grams}
+            onChangeText={(t) => update({ silver925Grams: t })}
+            placeholder="مثلاً 50"
+            keyboardType="decimal-pad"
+            unitLabel="گرم"
+            tomanValue={silver925Value}
+            valueHint={silver925Unit > 0 ? `قیمت هر گرم: ${formatFullToman(silver925Unit)}` : 'قیمت در حال دریافت'}
+          />
+          <AssetRow
+            icon={<Coins size={16} color={colors.dark.accent} />}
             label="سکه امامی (تعداد)"
             value={assets.coinEmami}
             onChangeText={(t) => update({ coinEmami: t })}
@@ -384,12 +417,10 @@ export default function LocalAssetsSection({
             keyboardType="number-pad"
             unitLabel="عدد"
             tomanValue={coinValues.emami}
-            valueHint={
-              p?.coinEmami ? `قیمت هر عدد: ${formatFullToman(p.coinEmami)}` : 'قیمت در حال دریافت'
-            }
+            valueHint={p?.coinEmami ? `قیمت هر عدد: ${formatFullToman(p.coinEmami)}` : 'قیمت در حال دریافت'}
           />
           <AssetRow
-            icon={<Coins size={14} color={colors.dark.accent} />}
+            icon={<Coins size={16} color={colors.dark.accent} />}
             label="سکه بهار آزادی (تعداد)"
             value={assets.coinBahar}
             onChangeText={(t) => update({ coinBahar: t })}
@@ -397,12 +428,10 @@ export default function LocalAssetsSection({
             keyboardType="number-pad"
             unitLabel="عدد"
             tomanValue={coinValues.bahar}
-            valueHint={
-              p?.coinBahar ? `قیمت هر عدد: ${formatFullToman(p.coinBahar)}` : 'قیمت در حال دریافت'
-            }
+            valueHint={p?.coinBahar ? `قیمت هر عدد: ${formatFullToman(p.coinBahar)}` : 'قیمت در حال دریافت'}
           />
           <AssetRow
-            icon={<Coins size={14} color={colors.dark.accent} />}
+            icon={<Coins size={16} color={colors.dark.accent} />}
             label="نیم سکه (تعداد)"
             value={assets.coinNim}
             onChangeText={(t) => update({ coinNim: t })}
@@ -413,7 +442,7 @@ export default function LocalAssetsSection({
             valueHint={p?.coinNim ? `قیمت هر عدد: ${formatFullToman(p.coinNim)}` : 'قیمت در حال دریافت'}
           />
           <AssetRow
-            icon={<Coins size={14} color={colors.dark.accent} />}
+            icon={<Coins size={16} color={colors.dark.accent} />}
             label="ربع سکه (تعداد)"
             value={assets.coinRob}
             onChangeText={(t) => update({ coinRob: t })}
@@ -428,7 +457,7 @@ export default function LocalAssetsSection({
           {hasBlockchainWallet && (
             <View style={styles.assetRow}>
               <View style={[styles.assetIcon, { backgroundColor: colors.dark.blueDim }]}>
-                <Lock size={14} color={colors.dark.blue} />
+                <Lock size={16} color={colors.dark.blue} />
               </View>
               <View style={styles.assetMain}>
                 <Text style={styles.assetLabel}>کیف پول بلاکچین (فقط خواندنی)</Text>
@@ -450,7 +479,7 @@ export default function LocalAssetsSection({
           {totalPortfolioUsd > 0 && (
             <View style={styles.assetRow}>
               <View style={[styles.assetIcon, { backgroundColor: colors.dark.orangeDim }]}>
-                <Coins size={14} color={colors.dark.orange} />
+                <Coins size={16} color={colors.dark.orange} />
               </View>
               <View style={styles.assetMain}>
                 <Text style={styles.assetLabel}>ارز دیجیتال (صرافی‌ها)</Text>
@@ -471,7 +500,7 @@ export default function LocalAssetsSection({
   );
 }
 
-// PnL card
+// PnL card - تایم‌فریم از امروز به 180 (راست به چپ)
 const PNL_PERIODS = [1, 7, 30, 90, 180] as const;
 type LocalPnlPeriod = (typeof PNL_PERIODS)[number];
 const PNL_PERIOD_LABEL: Record<number, string> = {
@@ -503,51 +532,38 @@ function LocalAssetsPnl({
   blockchainPnlTomanByPeriod?: Record<number, { pnlToman: number; basisToman: number } | null>;
   hasBlockchainWallet?: boolean;
 }) {
-  const [period, setPeriod] = useState<number>(180);
+  const [period, setPeriod] = useState<number>(1);
   const goldQty = parseTomanInput(assets.goldGrams) || 0;
-  const silverQty = parseTomanInput(assets.silverGrams) || 0;
+  const mesghalQty = parseTomanInput(assets.mesghalQty) || 0;
+  const silver999Qty = parseTomanInput(assets.silver999Grams) || 0;
+  const silver925Qty = parseTomanInput(assets.silver925Grams) || 0;
   const usdQty = parseTomanInput(assets.usdCash) || 0;
   const usdtQty = parseTomanInput(assets.usdtQty) || 0;
 
   const held: HeldAssetSpec[] = useMemo(() => {
     const list: HeldAssetSpec[] = [];
     if (usdQty > 0) {
-      list.push({
-        key: 'usd',
-        label: 'دلار کاغذی',
-        qty: usdQty,
-        symbol: TgjuHistorySymbol.dollar,
-        liveUnit: prices?.dollar ?? 0,
-      });
+      list.push({ key: 'usd', label: 'دلار کاغذی', qty: usdQty, symbol: TgjuHistorySymbol.dollar, liveUnit: prices?.dollar ?? 0 });
     }
     if (usdtQty > 0) {
-      list.push({
-        key: 'usdt',
-        label: 'تتر (دستی)',
-        qty: usdtQty,
-        symbol: TgjuHistorySymbol.dollar,
-        liveUnit: usdtToToman,
-      });
+      list.push({ key: 'usdt', label: 'تتر (دستی)', qty: usdtQty, symbol: TgjuHistorySymbol.dollar, liveUnit: usdtToToman });
     }
     if (goldQty > 0) {
       const is24 = assets.goldKarat === '24';
       list.push({
-        key: 'gold',
-        label: is24 ? 'طلای ۲۴ عیار' : 'طلای ۱۸ عیار',
-        qty: goldQty,
+        key: 'gold', label: is24 ? 'طلای ۲۴ عیار' : 'طلای ۱۸ عیار', qty: goldQty,
         symbol: is24 ? TgjuHistorySymbol.gold24 : TgjuHistorySymbol.gold18,
         liveUnit: (is24 ? prices?.gold24 : prices?.gold18) ?? 0,
       });
     }
-    if (silverQty > 0) {
-      const is925 = assets.silverType === '925';
-      list.push({
-        key: 'silver',
-        label: is925 ? 'نقره ۹۲۵' : 'نقره ۹۹۹',
-        qty: silverQty,
-        symbol: is925 ? TgjuHistorySymbol.silver925 : TgjuHistorySymbol.silver999,
-        liveUnit: (is925 ? prices?.silver925 : prices?.silver999) ?? 0,
-      });
+    if (mesghalQty > 0) {
+      list.push({ key: 'mesghal', label: 'مثقال طلا', qty: mesghalQty, symbol: 'mesghal', liveUnit: prices?.mesghal ?? 0 });
+    }
+    if (silver999Qty > 0) {
+      list.push({ key: 'silver999', label: 'نقره ۹۹۹', qty: silver999Qty, symbol: TgjuHistorySymbol.silver999, liveUnit: prices?.silver999 ?? 0 });
+    }
+    if (silver925Qty > 0) {
+      list.push({ key: 'silver925', label: 'نقره ۹۲۵', qty: silver925Qty, symbol: TgjuHistorySymbol.silver925, liveUnit: prices?.silver925 ?? 0 });
     }
     const coins: Array<[string, string, string, number]> = [
       ['emami', 'سکه امامی', 'sekee', parseTomanInput(assets.coinEmami) || 0],
@@ -556,16 +572,14 @@ function LocalAssetsPnl({
       ['rob', 'ربع سکه', 'rob', parseTomanInput(assets.coinRob) || 0],
     ];
     const coinLive: Record<string, number> = {
-      emami: prices?.coinEmami ?? 0,
-      bahar: prices?.coinBahar ?? 0,
-      nim: prices?.coinNim ?? 0,
-      rob: prices?.coinRob ?? 0,
+      emami: prices?.coinEmami ?? 0, bahar: prices?.coinBahar ?? 0,
+      nim: prices?.coinNim ?? 0, rob: prices?.coinRob ?? 0,
     };
     for (const [key, label, symbol, qty] of coins) {
       if (qty > 0) list.push({ key, label, qty, symbol, liveUnit: coinLive[key] ?? 0 });
     }
     return list;
-  }, [goldQty, silverQty, usdQty, usdtQty, usdtToToman, assets, prices]);
+  }, [goldQty, mesghalQty, silver999Qty, silver925Qty, usdQty, usdtQty, usdtToToman, assets, prices]);
 
   const symbols = useMemo(() => [...new Set(held.map((h) => h.symbol))], [held]);
 
@@ -594,11 +608,7 @@ function LocalAssetsPnl({
       const nowUnit = h.liveUnit > 0 ? h.liveUnit : latestClose(series) ?? 0;
       const thenUnit = closeAtOrBefore(series, target);
       if (nowUnit <= 0 || thenUnit === null || thenUnit <= 0) continue;
-      out.push({
-        label: h.label,
-        pnl: h.qty * (nowUnit - thenUnit),
-        basis: h.qty * thenUnit,
-      });
+      out.push({ label: h.label, pnl: h.qty * (nowUnit - thenUnit), basis: h.qty * thenUnit });
     }
     return out;
   }, [seriesMap, held, period]);
@@ -618,13 +628,14 @@ function LocalAssetsPnl({
     <View style={styles.pnlBox}>
       <View style={styles.pnlHeader}>
         {positive ? (
-          <TrendingUp size={16} color={colors.dark.green} />
+          <TrendingUp size={18} color={colors.dark.green} />
         ) : (
-          <TrendingDown size={16} color={colors.dark.red} />
+          <TrendingDown size={18} color={colors.dark.red} />
         )}
-        <Text style={styles.pnlTitle}>سود / زیان دارایی‌ها (تغییر قیمت بازار)</Text>
+        <Text style={styles.pnlTitle}>سود / زیان دارایی‌ها</Text>
       </View>
 
+      {/* period selector - راست به چپ، از امروز به 180 */}
       <View style={styles.periodSelector}>
         {PNL_PERIODS.map((d) => (
           <Pressable
@@ -632,12 +643,7 @@ function LocalAssetsPnl({
             onPress={() => setPeriod(d)}
             style={[styles.periodChip, period === d && styles.periodChipActive]}
           >
-            <Text
-              style={[
-                styles.periodChipText,
-                period === d && styles.periodChipTextActive,
-              ]}
-            >
+            <Text style={[styles.periodChipText, period === d && styles.periodChipTextActive]}>
               {PNL_PERIOD_LABEL[d]}
             </Text>
           </Pressable>
@@ -647,38 +653,19 @@ function LocalAssetsPnl({
       {historyQuery.isLoading && held.length > 0 ? (
         <Text style={styles.pnlHint}>دریافت تاریخچه قیمت‌ها…</Text>
       ) : (historyQuery.isError || rows.length === 0) && !bcEntry ? (
-        <Text style={styles.pnlHint}>
-          تاریخچه قیمت برای این بازه در دسترس نیست — بعداً دوباره تلاش کنید
-        </Text>
+        <Text style={styles.pnlHint}>تاریخچه قیمت برای این بازه در دسترس نیست</Text>
       ) : (
         <>
-          <Text
-            style={[
-              styles.pnlTotal,
-              { color: positive ? colors.dark.green : colors.dark.red },
-            ]}
-          >
+          <Text style={[styles.pnlTotal, { color: positive ? colors.dark.green : colors.dark.red }]}>
             {positive ? '+' : '−'} {formatFullToman(Math.abs(Math.round(grandPnl)))} تومان
           </Text>
-          <Text
-            style={[
-              styles.pnlPct,
-              { color: positive ? colors.dark.green : colors.dark.red },
-            ]}
-          >
-            {positive ? '▲' : '▼'} {Math.abs(totalPct).toLocaleString('fa-IR', {
-              maximumFractionDigits: 1,
-            })}٪ در {PNL_PERIOD_LABEL[period]}
+          <Text style={[styles.pnlPct, { color: positive ? colors.dark.green : colors.dark.red }]}>
+            {positive ? '▲' : '▼'} {Math.abs(totalPct).toLocaleString('fa-IR', { maximumFractionDigits: 1 })}٪ در {PNL_PERIOD_LABEL[period]}
           </Text>
           {rows.map((r, idx) => (
             <View key={idx} style={styles.pnlRow}>
               <Text style={styles.pnlRowLabel}>{r.label}</Text>
-              <Text
-                style={[
-                  styles.pnlRowValue,
-                  { color: r.pnl >= 0 ? colors.dark.green : colors.dark.red },
-                ]}
-              >
+              <Text style={[styles.pnlRowValue, { color: r.pnl >= 0 ? colors.dark.green : colors.dark.red }]}>
                 {r.pnl >= 0 ? '+' : '−'} {formatFullToman(Math.abs(Math.round(r.pnl)))} ت
               </Text>
             </View>
@@ -686,25 +673,13 @@ function LocalAssetsPnl({
           {hasBlockchainWallet && (
             <View style={styles.pnlRow}>
               <Text style={styles.pnlRowLabel}>کیف پول بلاکچین</Text>
-              <Text
-                style={[
-                  styles.pnlRowValue,
-                  {
-                    color: bcEntry && bcEntry.pnlToman >= 0 ? colors.dark.green : colors.dark.red,
-                  },
-                ]}
-              >
-                {!bcEntry
-                  ? 'در حال محاسبه…'
-                  : `${bcEntry.pnlToman >= 0 ? '+' : '−'} ${formatFullToman(
-                      Math.abs(Math.round(bcEntry.pnlToman))
-                    )} ت`}
+              <Text style={[styles.pnlRowValue, { color: bcEntry && bcEntry.pnlToman >= 0 ? colors.dark.green : colors.dark.red }]}>
+                {!bcEntry ? 'در حال محاسبه…' : `${bcEntry.pnlToman >= 0 ? '+' : '−'} ${formatFullToman(Math.abs(Math.round(bcEntry.pnlToman)))} ت`}
               </Text>
             </View>
           )}
           <Text style={styles.pnlNote}>
-            مبنا: قیمت پایان روزِ {PNL_PERIOD_LABEL[period]} پیش تا امروز (منبع: TGJU؛ کیف بلاکچین:
-            قیمت بایننس × نرخ تتر). تغییر ارزش بر اساس نوسان بازار است، نه زمان خرید واقعی شما.
+            مبنا: قیمت پایان روزِ {PNL_PERIOD_LABEL[period]} پیش تا امروز (منبع: TGJU)
           </Text>
         </>
       )}
@@ -713,17 +688,16 @@ function LocalAssetsPnl({
 }
 
 // ── sub-components ──
-function PriceChip({ label, value }: { label: string; value?: number }) {
+function PriceChip({ label, value, isUsd }: { label: string; value?: number; isUsd?: boolean }) {
   return (
     <View style={styles.priceChip}>
       <Text style={styles.priceChipLabel}>{label}</Text>
-      <Text
-        style={[
-          styles.priceChipValue,
-          !(value && value > 0) && styles.priceChipEmpty,
-        ]}
-      >
-        {value && value > 0 ? formatFullToman(value) : '…'}
+      <Text style={[styles.priceChipValue, !(value && value > 0) && styles.priceChipEmpty]}>
+        {value && value > 0
+          ? isUsd
+            ? `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+            : formatFullToman(value)
+          : '…'}
       </Text>
     </View>
   );
@@ -743,16 +717,7 @@ interface AssetRowProps {
 }
 
 function AssetRow({
-  icon,
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  keyboardType,
-  unitLabel,
-  tomanValue,
-  valueHint,
-  children,
+  icon, label, value, onChangeText, placeholder, keyboardType, unitLabel, tomanValue, valueHint, children,
 }: AssetRowProps) {
   return (
     <View style={styles.assetRow}>
@@ -790,32 +755,16 @@ function AssetRow({
   );
 }
 
-function Selector({
-  options,
-  active,
-  onSelect,
-}: {
-  options: { key: string; label: string }[];
-  active: string;
-  onSelect: (key: string) => void;
-}) {
+function Selector({ options, active, onSelect }: { options: { key: string; label: string }[]; active: string; onSelect: (key: string) => void }) {
   return (
     <View style={styles.selector}>
       {options.map((o) => (
         <Pressable
           key={o.key}
           onPress={() => onSelect(o.key)}
-          style={[
-            styles.selectorChip,
-            active === o.key && styles.selectorChipActive,
-          ]}
+          style={[styles.selectorChip, active === o.key && styles.selectorChipActive]}
         >
-          <Text
-            style={[
-              styles.selectorChipText,
-              active === o.key && styles.selectorChipTextActive,
-            ]}
-          >
+          <Text style={[styles.selectorChipText, active === o.key && styles.selectorChipTextActive]}>
             {o.label}
           </Text>
         </Pressable>
@@ -824,7 +773,7 @@ function Selector({
   );
 }
 
-// ── styles ──
+// ── styles (با فونت درشت‌تر) ──
 const styles = createThemedStyles(() =>
   StyleSheet.create({
     card: {
@@ -842,302 +791,87 @@ const styles = createThemedStyles(() =>
       marginBottom: 12,
     },
     title: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: colors.dark.text,
-      flex: 1,
-      textAlign: 'right',
-    },
-    refreshBtn: {
-      padding: 6,
-      borderRadius: 8,
-      backgroundColor: colors.dark.accentDim,
-    },
-    chevronBtn: {
-      padding: 6,
-      borderRadius: 8,
-    },
-    myAssetsHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginTop: 12,
-    },
-    myAssetsTitle: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.dark.text,
-    },
-    blockLabel: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: colors.dark.textSecondary,
-      marginBottom: 8,
-      textAlign: 'right',
-    },
-    priceBlock: {
-      backgroundColor: colors.dark.card,
-      borderRadius: 10,
-      padding: 10,
-    },
-    priceGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-    },
-    priceChip: {
-      flexBasis: '31%',
-      flexGrow: 1,
-      backgroundColor: colors.dark.surface,
-      borderRadius: 8,
-      paddingVertical: 10,
-      paddingHorizontal: 8,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.dark.border,
-    },
-    priceChipLabel: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: colors.dark.textSecondary,
-      textAlign: 'center',
-      marginBottom: 4,
-    },
-    priceChipValue: {
-      fontSize: 14,
-      fontWeight: '800',
-      color: colors.dark.text,
-      marginTop: 2,
-    },
-    priceChipEmpty: {
-      color: colors.dark.textSecondary,
-      fontWeight: '400',
-    },
-    priceNote: {
-      fontSize: 9,
-      color: colors.dark.textSecondary,
-      marginTop: 6,
-      textAlign: 'left',
-    },
-    totalBox: {
-      marginTop: 10,
-      backgroundColor: colors.dark.card,
-      borderRadius: 12,
-      padding: 14,
-      borderWidth: 1,
-      borderColor: colors.dark.green + '33',
-    },
-    totalRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginBottom: 6,
-    },
-    totalLabel: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: colors.dark.textSecondary,
-      flex: 1,
-      textAlign: 'right',
-    },
-    totalAmount: {
-      fontSize: 22,
-      fontWeight: '800',
-      color: colors.dark.green,
-      textAlign: 'right',
-    },
-    totalExact: {
-      fontSize: 10,
-      color: colors.dark.textSecondary,
-      textAlign: 'right',
-      marginTop: 2,
-    },
-    totalBreakdown: {
-      marginTop: 8,
-      paddingTop: 8,
-      borderTopWidth: 1,
-      borderTopColor: colors.dark.border,
-    },
-    breakdownText: {
-      fontSize: 9,
-      color: colors.dark.textSecondary,
-      textAlign: 'right',
-      lineHeight: 16,
-    },
-    pnlBox: {
-      marginTop: 12,
-      backgroundColor: colors.dark.card,
-      borderRadius: 12,
-      padding: 12,
-      borderWidth: 1,
-      borderColor: colors.dark.border,
-    },
-    pnlHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginBottom: 8,
-    },
-    pnlTitle: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.dark.text,
-      flex: 1,
-      textAlign: 'right',
-    },
-    periodSelector: {
-      flexDirection: 'row-reverse',
-      gap: 6,
-      marginBottom: 8,
-    },
-    periodChip: {
-      paddingVertical: 4,
-      paddingHorizontal: 10,
-      borderRadius: 8,
-      backgroundColor: colors.dark.surface,
-      borderWidth: 1,
-      borderColor: colors.dark.border,
-    },
-    periodChipActive: {
-      backgroundColor: colors.dark.accentDim,
-      borderColor: colors.dark.accent,
-    },
-    periodChipText: {
-      fontSize: 10,
-      fontWeight: '600',
-      color: colors.dark.textSecondary,
-    },
-    periodChipTextActive: {
-      color: colors.dark.accent,
-      fontWeight: '700',
-    },
-    pnlHint: {
-      fontSize: 10,
-      color: colors.dark.textSecondary,
-      textAlign: 'right',
-    },
-    pnlTotal: {
       fontSize: 16,
-      fontWeight: '800',
-      textAlign: 'right',
-      marginBottom: 2,
-    },
-    pnlPct: {
-      fontSize: 11,
       fontWeight: '700',
+      color: colors.dark.text,
+      flex: 1,
       textAlign: 'right',
-      marginBottom: 8,
     },
-    pnlRow: {
+    refreshBtn: { padding: 6, borderRadius: 8, backgroundColor: colors.dark.accentDim },
+    chevronBtn: { padding: 6, borderRadius: 8 },
+    myAssetsHeader: {
       flexDirection: 'row-reverse',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: 3,
+      marginTop: 12,
     },
-    pnlRowLabel: {
-      fontSize: 10,
-      color: colors.dark.textSecondary,
+    myAssetsTitle: { fontSize: 14, fontWeight: '700', color: colors.dark.text, textAlign: 'right' },
+    blockLabel: { fontSize: 13, fontWeight: '600', color: colors.dark.textSecondary, marginBottom: 8, textAlign: 'right' },
+    priceBlock: { backgroundColor: colors.dark.card, borderRadius: 10, padding: 10 },
+    priceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    priceChip: {
+      flexBasis: '31%', flexGrow: 1,
+      backgroundColor: colors.dark.surface,
+      borderRadius: 8, paddingVertical: 12, paddingHorizontal: 8,
+      alignItems: 'center', borderWidth: 1, borderColor: colors.dark.border,
     },
-    pnlRowValue: {
-      fontSize: 11,
-      fontWeight: '700',
+    priceChipLabel: { fontSize: 12, fontWeight: '600', color: colors.dark.textSecondary, textAlign: 'center', marginBottom: 4 },
+    priceChipValue: { fontSize: 15, fontWeight: '800', color: colors.dark.text, marginTop: 2 },
+    priceChipEmpty: { color: colors.dark.textSecondary, fontWeight: '400' },
+    priceNote: { fontSize: 11, color: colors.dark.textSecondary, marginTop: 6, textAlign: 'left' },
+    totalBox: {
+      marginTop: 10, backgroundColor: colors.dark.card, borderRadius: 12,
+      padding: 14, borderWidth: 1, borderColor: colors.dark.green + '33',
     },
-    pnlNote: {
-      fontSize: 9,
-      color: colors.dark.textMuted,
-      textAlign: 'right',
-      marginTop: 8,
-      lineHeight: 14,
+    totalRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+    totalLabel: { fontSize: 13, fontWeight: '600', color: colors.dark.textSecondary, flex: 1, textAlign: 'right' },
+    totalAmount: { fontSize: 24, fontWeight: '800', color: colors.dark.green, textAlign: 'right' },
+    totalExact: { fontSize: 11, color: colors.dark.textSecondary, textAlign: 'right', marginTop: 2 },
+    totalBreakdown: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.dark.border },
+    breakdownText: { fontSize: 11, color: colors.dark.textSecondary, textAlign: 'right', lineHeight: 18 },
+    pnlBox: {
+      marginTop: 12, backgroundColor: colors.dark.card, borderRadius: 12,
+      padding: 12, borderWidth: 1, borderColor: colors.dark.border,
     },
-    assetRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingVertical: 8,
+    pnlHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    pnlTitle: { fontSize: 14, fontWeight: '700', color: colors.dark.text, flex: 1, textAlign: 'right' },
+    periodSelector: { flexDirection: 'row-reverse', gap: 6, marginBottom: 8 },
+    periodChip: {
+      paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8,
+      backgroundColor: colors.dark.surface, borderWidth: 1, borderColor: colors.dark.border,
     },
-    assetIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: colors.dark.accentDim,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    assetMain: {
-      flex: 1,
-      gap: 4,
-    },
-    assetLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: colors.dark.text,
-      textAlign: 'right',
-    },
-    assetInputRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
+    periodChipActive: { backgroundColor: colors.dark.accentDim, borderColor: colors.dark.accent },
+    periodChipText: { fontSize: 12, fontWeight: '600', color: colors.dark.textSecondary },
+    periodChipTextActive: { color: colors.dark.accent, fontWeight: '700' },
+    pnlHint: { fontSize: 12, color: colors.dark.textSecondary, textAlign: 'right' },
+    pnlTotal: { fontSize: 18, fontWeight: '800', textAlign: 'right', marginBottom: 2 },
+    pnlPct: { fontSize: 13, fontWeight: '700', textAlign: 'right', marginBottom: 8 },
+    pnlRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+    pnlRowLabel: { fontSize: 12, color: colors.dark.textSecondary },
+    pnlRowValue: { fontSize: 13, fontWeight: '700' },
+    pnlNote: { fontSize: 10, color: colors.dark.textMuted, textAlign: 'right', marginTop: 8, lineHeight: 16 },
+    assetRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingVertical: 8 },
+    assetIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.dark.accentDim, justifyContent: 'center', alignItems: 'center' },
+    assetMain: { flex: 1, gap: 4 },
+    assetLabel: { fontSize: 14, fontWeight: '600', color: colors.dark.text, textAlign: 'right' },
+    assetInputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     assetInput: {
-      flex: 1,
-      backgroundColor: colors.dark.card,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.dark.border,
-      color: colors.dark.text,
-      fontSize: 13,
-      fontWeight: '600',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      flex: 1, backgroundColor: colors.dark.card, borderRadius: 8, borderWidth: 1,
+      borderColor: colors.dark.border, color: colors.dark.text,
+      fontSize: 15, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 8,
     },
-    assetUnit: {
-      fontSize: 11,
-      color: colors.dark.textSecondary,
-      minWidth: 30,
-    },
-    assetHint: {
-      fontSize: 9,
-      color: colors.dark.textSecondary,
-      textAlign: 'right',
-    },
-    assetValueCol: {
-      minWidth: 92,
-      alignItems: 'flex-start',
-    },
-    assetValue: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.dark.green,
-    },
-    assetValueEmpty: {
-      color: colors.dark.textSecondary,
-      fontWeight: '400',
-    },
-    selector: {
-      flexDirection: 'row',
-      gap: 6,
-      marginTop: 2,
-    },
+    assetUnit: { fontSize: 13, color: colors.dark.textSecondary, minWidth: 40 },
+    assetHint: { fontSize: 11, color: colors.dark.textSecondary, textAlign: 'right' },
+    assetValueCol: { minWidth: 100, alignItems: 'flex-start' },
+    assetValue: { fontSize: 14, fontWeight: '700', color: colors.dark.green },
+    assetValueEmpty: { color: colors.dark.textSecondary, fontWeight: '400' },
+    selector: { flexDirection: 'row', gap: 6, marginTop: 4 },
     selectorChip: {
-      backgroundColor: colors.dark.card,
-      borderWidth: 1,
-      borderColor: colors.dark.border,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
+      backgroundColor: colors.dark.card, borderWidth: 1, borderColor: colors.dark.border,
+      borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5,
     },
-    selectorChipActive: {
-      backgroundColor: colors.dark.accentDim,
-      borderColor: colors.dark.accent,
-    },
-    selectorChipText: {
-      fontSize: 10,
-      fontWeight: '600',
-      color: colors.dark.textSecondary,
-    },
-    selectorChipTextActive: {
-      color: colors.dark.accent,
-      fontWeight: '700',
-    },
+    selectorChipActive: { backgroundColor: colors.dark.accentDim, borderColor: colors.dark.accent },
+    selectorChipText: { fontSize: 12, fontWeight: '600', color: colors.dark.textSecondary },
+    selectorChipTextActive: { color: colors.dark.accent, fontWeight: '700' },
   })
 );

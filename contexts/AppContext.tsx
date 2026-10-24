@@ -1,9 +1,10 @@
 // ============================================================
-//  AppContext - مدیریت تم و IP و قفل اپ
-//  ساده شده برای جلوگیری از گیر کردن در startup
+//  AppContext - مدیریت تم و IP
+//  ساده شده - بدون useEffect در startup
+//  همه چیز lazy load می‌شود
 // ============================================================
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setThemeMode, ThemeMode } from '../constants/colors';
 import { checkIp, IpInfo, clearIpCache } from '../utils/ipCheck';
@@ -40,55 +41,11 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  // مهم: تنظیمات پیش‌فرض از همان ابتدا فعال هستند
-  // اگر AsyncStorage دیر لود شود، مشکلی نیست - اپ کار می‌کند
+  // فقط state های ساده - بدون useEffect در startup
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [ipInfo, setIpInfo] = useState<IpInfo | null>(null);
-  const [settingsLoaded, setSettingsLoaded] = useState(true); // مهم: default true
 
-  // بارگذاری تنظیمات در background (بدون block کردن اپ)
-  useEffect(() => {
-    (async () => {
-      try {
-        const stored = await AsyncStorage.getItem(SETTINGS_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const newSettings = { ...DEFAULT_SETTINGS, ...parsed };
-          setSettings(newSettings);
-          if (parsed.themeMode) {
-            setThemeMode(parsed.themeMode);
-          }
-        }
-      } catch (e) {
-        console.log('[AppContext] settings load error:', e);
-      }
-      setSettingsLoaded(true);
-    })();
-  }, []);
-
-  // بررسی IP در background (بدون block کردن اپ)
-  const refreshIp = useCallback(async () => {
-    try {
-      clearIpCache();
-      const info = await checkIp();
-      setIpInfo(info);
-    } catch (e) {
-      console.log('[AppContext] IP check error:', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    // IP check را با delay اجرا می‌کنیم تا اپ اول بالا بیاید
-    const timer = setTimeout(() => {
-      refreshIp();
-    }, 1000);
-    const interval = setInterval(refreshIp, 5 * 60 * 1000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [refreshIp]);
-
+  // updateSettings به‌صورت async
   const updateSettings = useCallback(async (patch: Partial<AppSettings>) => {
     const newSettings = { ...settings, ...patch };
     setSettings(newSettings);
@@ -98,7 +55,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
     } catch (e) {
-      console.log('[AppContext] settings save error:', e);
+      console.log('[AppContext] save error:', e);
     }
   }, [settings]);
 
@@ -106,9 +63,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch (e) {
-      console.log('[AppContext] settings save error:', e);
+      console.log('[AppContext] save error:', e);
     }
   }, [settings]);
+
+  // refreshIp به‌صورت async
+  const refreshIp = useCallback(async () => {
+    try {
+      clearIpCache();
+      const info = await checkIp();
+      if (info) setIpInfo(info);
+    } catch (e) {
+      console.log('[AppContext] IP check error:', e);
+    }
+  }, []);
 
   const isIran = ipInfo?.isIran ?? false;
   const canAccessCrypto = !isIran;
@@ -123,7 +91,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         refreshIp,
         isIran,
         canAccessCrypto,
-        settingsLoaded,
+        settingsLoaded: true,
       }}
     >
       {children}
