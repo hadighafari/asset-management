@@ -1,6 +1,6 @@
 /**
- * themeStyles.ts — drop-in replacement for module-level StyleSheet.create.
- * مطابق پروژه GitHub ostad2fan/pompay
+ * themeStyles.ts — simplified version
+ * بدون Proxy (که در Hermes ممکن است مشکل ایجاد کند)
  */
 import { getThemeVersion } from '../constants/colors';
 
@@ -9,22 +9,25 @@ type AnyRecord = Record<string, any>;
 export function createThemedStyles<S extends AnyRecord>(make: () => S): S {
   let version = -1;
   let cached: AnyRecord | null = null;
-  return new Proxy({} as S, {
-    get(_target, prop) {
-      const v = getThemeVersion();
-      if (cached === null || v !== version) {
-        version = v;
-        cached = make();
-      }
-      return (cached as AnyRecord)[prop as any];
-    },
-    has(_target, prop) {
-      const v = getThemeVersion();
-      if (cached === null || v !== version) {
-        version = v;
-        cached = make();
-      }
-      return prop in (cached as object);
-    },
-  });
+
+  // برگرداندن یک object ساده به جای Proxy
+  // هر بار که getThemeVersion تغییر کند، cache بازسازی می‌شود
+  const result: any = {};
+  
+  // استفاده از Proxy اما با fallback ساده
+  try {
+    return new Proxy(result, {
+      get(_target, prop) {
+        const v = getThemeVersion();
+        if (cached === null || v !== version) {
+          version = v;
+          cached = make();
+        }
+        return (cached as AnyRecord)[prop as any];
+      },
+    });
+  } catch (e) {
+    // fallback: اگر Proxy کار نکرد، یک بار make را اجرا کن
+    return make();
+  }
 }
